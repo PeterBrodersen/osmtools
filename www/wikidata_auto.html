@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikidata Auto</title>
+    <script>
+        function formatDate(date) {
+            if (!date) return '';
+            let precision = 9; // Default precision is year
+            if (date.match(/^\d{4}$/)) {
+                precision = 9;
+                date = `+${date}-00-00T00:00:00Z`;
+            } else if (date.match(/^\d{4}-\d{2}$/)) {
+                precision = 10;
+                date = `+${date}-00T00:00:00Z`;
+            } else if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                precision = 11;
+                date = `+${date}T00:00:00Z`;
+            }
+            return `${date}/${precision}`;
+        }
+
+        function formatCoordinates(coordinates) {
+            if (!coordinates) return '';
+            let [lat, lon] = coordinates.split(',').map(coord => coord.trim());
+            return `@${lat}/${lon}`;
+        }
+
+        function getSourceStatement(source) {
+            if (!source) return '';
+            return source.match(/^Q\d+$/) ? `|S248|${source}` : `|S854|${source}`;
+        }
+
+        function updateQuickStatements() {
+            let type = document.getElementById('type').value;
+            let subType = document.getElementById('subType').value;
+            let birthDate = formatDate(document.getElementById('birthDate').value);
+            let deathDate = formatDate(document.getElementById('deathDate').value);
+            let citizenship = document.getElementById('citizenship').checked ? 'Q756617' : '';
+            let source = getSourceStatement(document.getElementById('source').value);
+            let label = document.getElementById('label').value;
+            let description = document.getElementById('description').value;
+            let alias = document.getElementById('alias').value;
+            let occupation = document.getElementById('occupation').value;
+            let country = document.getElementById('country').checked ? 'Q35' : '';
+            let municipality = document.getElementById('municipality').value;
+            let coordinates = formatCoordinates(document.getElementById('coordinates').value);
+            let osmNode = document.getElementById('osmNode').value;
+            let osmWay = document.getElementById('osmWay').value;
+            let osmRelation = document.getElementById('osmRelation').value;
+
+            let quickStatements = 'CREATE\n';
+
+            if (type === 'Human') {
+                quickStatements += 'LAST|P31|Q5\n';
+                if (subType === 'Man') {
+                    quickStatements += 'LAST|P21|Q6581097\n';
+                } else if (subType === 'Woman') {
+                    quickStatements += 'LAST|P21|Q6581072\n';
+                }
+                if (birthDate) {
+                    quickStatements += `LAST|P569|${birthDate}${source}\n`;
+                }
+                if (deathDate) {
+                    quickStatements += `LAST|P570|${deathDate}${source}\n`;
+                }
+                if (citizenship) {
+                    quickStatements += `LAST|P27|${citizenship}\n`;
+                }
+                if (occupation) {
+                    quickStatements += `LAST|P106|${occupation}${source}\n`;
+                }
+            } else if (type === 'Location') {
+                if (subType === 'City') {
+                    quickStatements += 'LAST|P31|Q515\n';
+                } else if (subType === 'Town') {
+                    quickStatements += 'LAST|P31|Q3957\n';
+                } else if (subType === 'Human Settlement') {
+                    quickStatements += 'LAST|P31|Q486972\n';
+                }
+                if (country) {
+                    quickStatements += `LAST|P17|${country}\n`;
+                }
+                if (municipality) {
+                    quickStatements += `LAST|P131|${municipality}\n`;
+                }
+                if (coordinates) {
+                    quickStatements += `LAST|P625|${coordinates}\n`;
+                }
+                if (osmNode) {
+                    quickStatements += `LAST|P11693|"${osmNode}"\n`;
+                }
+                if (osmWay) {
+                    quickStatements += `LAST|P10689|"${osmWay}"\n`;
+                }
+                if (osmRelation) {
+                    quickStatements += `LAST|P402|"${osmRelation}"\n`;
+                }
+            }
+
+            if (label) {
+                quickStatements += `LAST|Lda|"${label}"\n`;
+            }
+            if (description) {
+                quickStatements += `LAST|Dda|"${description}"\n`;
+            }
+            if (alias) {
+                quickStatements += `LAST|Ada|"${alias}"\n`;
+            }
+
+            document.getElementById('quickStatements').value = quickStatements;
+            updateQuickStatementsLink(quickStatements);
+        }
+
+        function updateQuickStatementsLink(quickStatements) {
+            let encodedStatements = encodeURIComponent(quickStatements).replace(/%0A/g, '%7C%7C');
+            let quickStatementsLink = `https://quickstatements.toolforge.org/#/v1=${encodedStatements}`;
+            document.getElementById('quickStatementsLink').href = quickStatementsLink;
+        }
+
+        function updateSubTypeOptions() {
+            let type = document.getElementById('type').value;
+            let subType = document.getElementById('subType');
+            subType.innerHTML = '';
+
+            if (type === 'Human') {
+                subType.innerHTML += '<option value="Man">Man</option>';
+                subType.innerHTML += '<option value="Woman">Woman</option>';
+                document.getElementById('humanFields').style.display = 'block';
+                document.getElementById('cityFields').style.display = 'none';
+            } else if (type === 'Location') {
+                subType.innerHTML += '<option value="City">City</option>';
+                subType.innerHTML += '<option value="Town">Town</option>';
+                subType.innerHTML += '<option value="Human Settlement">Human Settlement</option>';
+                document.getElementById('humanFields').style.display = 'none';
+                document.getElementById('cityFields').style.display = 'block';
+            }
+            updateQuickStatements();
+        }
+
+        function copyToClipboard() {
+            let quickStatements = document.getElementById('quickStatements');
+            quickStatements.select();
+            quickStatements.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand('copy');
+
+            let notification = document.getElementById('copyNotification');
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 2000);
+        }
+    </script>
+</head>
+<body>
+    <h1>Wikidata Auto</h1>
+    <form>
+        <label for="label">Danish Label:</label>
+        <input type="text" id="label" name="label" oninput="updateQuickStatements()"><br><br>
+
+        <label for="description">Danish Description:</label>
+        <input type="text" id="description" name="description" oninput="updateQuickStatements()"><br><br>
+
+        <label for="alias">Danish Alias:</label>
+        <input type="text" id="alias" name="alias" oninput="updateQuickStatements()"><br><br>
+
+        <label for="type">Type:</label>
+        <select id="type" name="type" onchange="updateSubTypeOptions()">
+            <option value="Human">Human</option>
+            <option value="Location">Location</option>
+        </select><br><br>
+
+        <label for="subType">Subtype:</label>
+        <select id="subType" name="subType" onchange="updateQuickStatements()">
+            <!-- Options will be populated by JavaScript -->
+        </select><br><br>
+
+        <div id="humanFields" style="display: none;">
+            <label for="birthDate">Birth Date:</label>
+            <input type="text" id="birthDate" name="birthDate" oninput="updateQuickStatements()"><br><br>
+
+            <label for="deathDate">Death Date:</label>
+            <input type="text" id="deathDate" name="deathDate" oninput="updateQuickStatements()"><br><br>
+
+            <label for="citizenship">Citizenship (Kingdom of Denmark):</label>
+            <input type="checkbox" id="citizenship" name="citizenship" onchange="updateQuickStatements()"><br><br>
+
+            <label for="occupation">Occupation:</label>
+            <select id="occupation" name="occupation" onchange="updateQuickStatements()">
+                <option value="">Select Occupation</option>
+                <option value="Q82955">Politician</option>
+                <option value="Q42855995">Fabricator</option>
+                <option value="Q331432">Fisher</option>
+                <option value="Q1897112">Skipper</option>
+                <option value="Q78597495">Strandfoged</option>
+                <option value="Q37226">Teacher</option>
+                <option value="Q61743173">Vognmand</option>
+            </select><br><br>
+        </div>
+
+        <div id="cityFields" style="display: none;">
+            <label for="country">Country (Denmark):</label>
+            <input type="checkbox" id="country" name="country" onchange="updateQuickStatements()"><br><br>
+
+            <label for="municipality">Municipality:</label>
+            <select id="municipality" name="municipality" onchange="updateQuickStatements()">
+                <option value="">Select Municipality</option>
+                <option value="Q504125">Copenhagen</option>
+                <option value="Q240262">Aarhus</option>
+                <option value="Q21146">Odense</option>
+                <option value="Q300856">Aalborg</option>
+                <option value="Q7715809">Thisted</option>
+                <!-- Add more municipalities as needed -->
+            </select><br><br>
+
+            <label for="coordinates">Coordinates (P625):</label>
+            <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()"><br><br>
+
+            <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
+            <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements()"><br><br>
+
+            <label for="osmWay">OpenStreetMap Way ID (P10689):</label>
+            <input type="text" id="osmWay" name="osmWay" oninput="updateQuickStatements()"><br><br>
+
+            <label for="osmRelation">OpenStreetMap Relation ID (P402):</label>
+            <input type="text" id="osmRelation" name="osmRelation" oninput="updateQuickStatements()"><br><br>
+        </div>
+
+        <label for="source">Source (Wikidata item):</label>
+        <input type="text" id="source" name="source" oninput="updateQuickStatements()"><br><br>
+
+        <label for="quickStatements">QuickStatements:</label><br>
+        <textarea id="quickStatements" name="quickStatements" rows="10" cols="50" readonly></textarea><br>
+        <button type="button" onclick="copyToClipboard()">Copy to Clipboard</button>
+        <div id="copyNotification" style="display: none; color: green;">Copied to clipboard!</div><br>
+        <a id="quickStatementsLink" href="#" target="_blank">Open in QuickStatements</a>
+    </form>
+
+    <script>
+        // Initialize the form with default values
+        updateSubTypeOptions();
+    </script>
+</body>
+</html>
