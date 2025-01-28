@@ -78,6 +78,8 @@
                     quickStatements += 'LAST|P31|Q3957\n';
                 } else if (subType === 'Human Settlement') {
                     quickStatements += 'LAST|P31|Q486972\n';
+                } else if (subType === 'Hill') {
+                    quickStatements += 'LAST|P31|Q54050\n';
                 }
                 if (country) {
                     quickStatements += `LAST|P17|${country}\n`;
@@ -133,6 +135,7 @@
                 subType.innerHTML += '<option value="City">City</option>';
                 subType.innerHTML += '<option value="Town">Town</option>';
                 subType.innerHTML += '<option value="Human Settlement">Human Settlement</option>';
+                subType.innerHTML += '<option value="Hill">Hill</option>';
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
             }
