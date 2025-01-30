@@ -1,10 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wikidata Auto</title>
     <script>
+        const locations = {
+            "City": "Q515",
+            "Town": "Q3957",
+            "Human Settlement": "Q486972",
+            "Hill": "Q54050",
+            "Farm": "Q131596"
+        };
+
+        const occupations = {
+            "": "Select Occupation",
+            "Q82955": "Politician",
+            "Q42855995": "Fabricator",
+            "Q331432": "Fisher",
+            "Q1897112": "Skipper",
+            "Q78597495": "Strandfoged",
+            "Q37226": "Teacher",
+            "Q61743173": "Vognmand"
+        };
+
+        const municipalities = {
+            "": "Select Municipality",
+            "Q504125": "Copenhagen",
+            "Q240262": "Aarhus",
+            "Q21146": "Odense",
+            "Q300856": "Aalborg",
+            "Q7715809": "Thisted",
+            "Q506109": "Holstebro"
+            // Add more municipalities as needed
+        };
+
         function formatDate(date) {
             if (!date) return '';
             let precision = 9; // Default precision is year
@@ -72,16 +103,8 @@
                     quickStatements += `LAST|P106|${occupation}${source}\n`;
                 }
             } else if (type === 'Location') {
-                if (subType === 'City') {
-                    quickStatements += 'LAST|P31|Q515\n';
-                } else if (subType === 'Town') {
-                    quickStatements += 'LAST|P31|Q3957\n';
-                } else if (subType === 'Human Settlement') {
-                    quickStatements += 'LAST|P31|Q486972\n';
-                } else if (subType === 'Hill') {
-                    quickStatements += 'LAST|P31|Q54050\n';
-                } else if (subType === 'Farm') {
-                    quickStatements += 'LAST|P31|Q131596\n';
+                if (locations[subType]) {
+                    quickStatements += `LAST|P31|${locations[subType]}\n`;
                 }
                 if (country) {
                     quickStatements += `LAST|P17|${country}\n`;
@@ -134,15 +157,22 @@
                 document.getElementById('humanFields').style.display = 'block';
                 document.getElementById('cityFields').style.display = 'none';
             } else if (type === 'Location') {
-                subType.innerHTML += '<option value="City">City</option>';
-                subType.innerHTML += '<option value="Town">Town</option>';
-                subType.innerHTML += '<option value="Human Settlement">Human Settlement</option>';
-                subType.innerHTML += '<option value="Hill">Hill</option>';
-                subType.innerHTML += '<option value="Farm">Farm</option>';
+                for (let key in locations) {
+                    subType.innerHTML += `<option value="${key}">${key}</option>`;
+                }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
             }
             updateQuickStatements();
+        }
+
+        function populateSelectOptions(selectElement, options) {
+            for (let value in options) {
+                let option = document.createElement('option');
+                option.value = value;
+                option.text = options[value];
+                selectElement.add(option);
+            }
         }
 
         function copyToClipboard() {
@@ -159,6 +189,7 @@
         }
     </script>
 </head>
+
 <body>
     <h1>Wikidata Auto</h1>
     <form>
@@ -184,7 +215,8 @@
 
         <div id="humanFields" style="display: none;">
             <label for="citizenship">Citizenship (Kingdom of Denmark):</label>
-            <input type="checkbox" id="citizenship" name="citizenship" onchange="updateQuickStatements()" checked><br><br>
+            <input type="checkbox" id="citizenship" name="citizenship" onchange="updateQuickStatements()"
+                checked><br><br>
 
             <label for="birthDate">Birth Date:</label>
             <input type="text" id="birthDate" name="birthDate" oninput="updateQuickStatements()"><br><br>
@@ -194,14 +226,7 @@
 
             <label for="occupation">Occupation:</label>
             <select id="occupation" name="occupation" onchange="updateQuickStatements()">
-                <option value="">Select Occupation</option>
-                <option value="Q82955">Politician</option>
-                <option value="Q42855995">Fabricator</option>
-                <option value="Q331432">Fisher</option>
-                <option value="Q1897112">Skipper</option>
-                <option value="Q78597495">Strandfoged</option>
-                <option value="Q37226">Teacher</option>
-                <option value="Q61743173">Vognmand</option>
+                <!-- Options will be populated by JavaScript -->
             </select><br><br>
         </div>
 
@@ -211,14 +236,7 @@
 
             <label for="municipality">Municipality:</label>
             <select id="municipality" name="municipality" onchange="updateQuickStatements()">
-                <option value="">Select Municipality</option>
-                <option value="Q504125">Copenhagen</option>
-                <option value="Q240262">Aarhus</option>
-                <option value="Q21146">Odense</option>
-                <option value="Q300856">Aalborg</option>
-                <option value="Q7715809">Thisted</option>
-                <option value="Q506109">Holstebro</option>
-                <!-- Add more municipalities as needed -->
+                <!-- Options will be populated by JavaScript -->
             </select><br><br>
 
             <label for="coordinates">Coordinates (P625):</label>
@@ -247,6 +265,9 @@
     <script>
         // Initialize the form with default values
         updateSubTypeOptions();
+        populateSelectOptions(document.getElementById('occupation'), occupations);
+        populateSelectOptions(document.getElementById('municipality'), municipalities);
     </script>
 </body>
+
 </html>
