@@ -17,6 +17,12 @@ if ($stationurl) {
 	$result = checkURL($stationurl);
 }
 
+function predie($text) {
+	header("Content-Type: text/plain");
+	print $text;
+	exit;
+}
+
 function checkLine ($url, $lineq) {
 	#$stationsPattern = "_<td><a class='text-primary' href='(vis.station.php.*?)'_";
 	$stationsPattern = '_<td><a class="text-underline-hover" href="(vis.station.php.*?)"_';
@@ -59,7 +65,7 @@ function checkURL ($url, $lineq = "") {
 		return 'Error: No content';
 	}
 	$result = "CREATE\n";
-	if ( ! preg_match('_<h1>(.*?)</h1>_', $content, $match)) {
+	if ( ! preg_match('_<title>(.*?), en artikel.*?</title>_', $content, $match)) {
 		return 'Error: No name';
 	}
 	$name = trim($match[1]);
@@ -103,6 +109,18 @@ function checkURL ($url, $lineq = "") {
 <html>
 <head>
 <title>Station converter to Wikidata</title>
+<script>
+function updateQuickStatementsLink(quickStatements) {
+    let encodedStatements = encodeURIComponent(quickStatements).replace(/%0A/g, '%7C%7C');
+    let quickStatementsLink = `https://quickstatements.toolforge.org/#/v1=${encodedStatements}`;
+    document.getElementById('quickStatementsLink').href = quickStatementsLink;
+}
+
+function updateQSLFromForm() {
+	const value = document.getElementById('quickStatements').value;
+	return updateQuickStatementsLink(value);
+}
+</script>
 </head>
 <body>
 <form action="station.php" method="get">
@@ -125,15 +143,21 @@ if ($result) {
 ?>
 <p></p>
 <div>
-<textarea rows="10" cols="150">
+<textarea rows="10" cols="150" onchange="updateQuickStatementsLink(this.value);" id="quickStatements">
 <?php print $result; ?>
 </textarea>
 <?php
 }
 ?>
 <div>
-<a href="https://quickstatements.toolforge.org/#/">QuickStatements</a>
-<div>
+<a href="https://quickstatements.toolforge.org/#/" id="quickStatementsLink">QuickStatements Form</a>
+</div>
+<p>
+<a href="https://quickstatements.toolforge.org/#/">QuickStatements Main Page</a>
+</p>
+<script>
+updateQSLFromForm();
+</script>
 </body>
 </html>
 
