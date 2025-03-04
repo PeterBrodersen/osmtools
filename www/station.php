@@ -96,11 +96,11 @@ function checkURL ($url, $lineq = "") {
 	$result .= "LAST\tP31\tQ4663385\tS854\t\"" . htmlspecialchars($url) . "\"\n";
 	$result .= "LAST\tP17\tQ35\n";
 	if ($bane) {
-		$result .= "LAST\tP81\t" . $bane . "\n";
+		$result .= "LAST\tP81\t" . $bane . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 	}
-	if ($start) $result .= "LAST\tP1619\t" . $start . "\n";
-	if ($end) $result .= "LAST\tP3999\t" . $end . "\n";
-	$result .= "LAST\tP625\t" . $coordinates . "\n";
+	if ($start) $result .= "LAST\tP1619\t" . $start . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
+	if ($end) $result .= "LAST\tP3999\t" . $end . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
+	$result .= "LAST\tP625\t" . $coordinates . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 
 	return $result;
 }
