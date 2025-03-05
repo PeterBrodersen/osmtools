@@ -150,10 +150,10 @@ if ($result) {
 }
 ?>
 <div>
-<a href="https://quickstatements.toolforge.org/#/" id="quickStatementsLink">QuickStatements Form</a>
+<a href="https://quickstatements.toolforge.org/#/" id="quickStatementsLink" target="_blank">Send Form to QuickStatements</a>
 </div>
 <p>
-<a href="https://quickstatements.toolforge.org/#/">QuickStatements Main Page</a>
+<a href="https://quickstatements.toolforge.org/#/" target="_blank">QuickStatements Main Page</a>
 </p>
 <script>
 updateQSLFromForm();
