@@ -153,7 +153,11 @@
                 quickStatements += `LAST|Dda|"${description}"\n`;
             }
             if (alias) {
-                quickStatements += `LAST|Ada|"${alias}"\n`;
+                alias.split('|').forEach(a => {
+                    if (a.trim()) {
+                        quickStatements += `LAST|Ada|"${a.trim()}"\n`;
+                    }
+                });
             }
 
             document.getElementById('quickStatements').value = quickStatements;
