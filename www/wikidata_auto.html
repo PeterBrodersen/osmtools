@@ -7,18 +7,18 @@
     <title>Wikidata Auto</title>
     <script>
         const locations = {
-            "City": "Q515",
-            "City quarter": "Q2983893",
-            "Town": "Q3957",
-            "Village": "Q532",
-            "Human Settlement": "Q486972",
-            "Hill": "Q54050",
-            "Farm": "Q131596",
-            "Bridge": "Q12280",
-            "Bog": "Q1681353",
-            "Building": "Q41176",
-            "Manor house": "Q879050",
-            "Forest": "Q4421",
+            "Q515": "City",
+            "Q2983893": "City quarter",
+            "Q3957": "Town",
+            "Q532": "Village",
+            "Q486972": "Human Settlement",
+            "Q54050": "Hill",
+            "Q131596": "Farm",
+            "Q12280": "Bridge",
+            "Q1681353": "Bog",
+            "Q41176": "Building",
+            "Q879050": "Manor house",
+            "Q4421": "Forest",
         };
 
         const occupations = {
@@ -123,8 +123,8 @@
                     quickStatements += `LAST|P106|${occupation}${source}\n`;
                 }
             } else if (type === 'Location') {
-                if (locations[subType]) {
-                    quickStatements += `LAST|P31|${locations[subType]}\n`;
+                if (subType) {
+                    quickStatements += `LAST|P31|${subType}\n`;
                 }
                 if (country) {
                     quickStatements += `LAST|P17|${country}\n`;
@@ -182,7 +182,7 @@
                 document.getElementById('cityFields').style.display = 'none';
             } else if (type === 'Location') {
                 for (let key in locations) {
-                    subType.innerHTML += `<option value="${key}">${key}</option>`;
+                    subType.innerHTML += `<option value="${key}">${locations[key]}</option>`;
                 }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
@@ -281,7 +281,7 @@
 
         <label for="quickStatements">QuickStatements:</label><br>
         <textarea id="quickStatements" name="quickStatements" rows="10" cols="50" readonly></textarea><br>
-        <button type="button" onclick="copyToClipboard()">Copy to Clipboard</button>
+        <a href="#" onclick="copyToClipboard()">Copy to Clipboard</a>
         <div id="copyNotification" style="display: none; color: green;">Copied to clipboard!</div><br>
         <a id="quickStatementsLink" href="#" target="_blank">Open in QuickStatements</a>
     </form>
