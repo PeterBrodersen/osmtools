@@ -2,69 +2,142 @@ import osmium
 import requests
 import csv
 import logging
+import json
+import os
+import time
+
+osmFile = 'denmark-latest.osm.pbf'
+# osmFile = 'andorra-latest.osm.pbf'
 
 # Enable logging for debugging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Trin 1: Udtræk OSM-objekter med 'wikidata'-nøglen, men uden 'name:etymology:wikidata'
+# Step 1: Fetch OSM objects with 'wikidata' key but without 'name:etymology:wikidata'
 class OSMHandler(osmium.SimpleHandler):
-    def __init__(self):
+    def __init__(self, max_elements=None):
         osmium.SimpleHandler.__init__(self)
         self.elements = []
+        self.max_elements = max_elements
+        self.reached_max = False
 
     def add_element(self, elem, elem_type):
+        if self.max_elements is not None and len(self.elements) >= self.max_elements:
+            self.reached_max = True
+            return
         tags = elem.tags
         if 'wikidata' in tags and 'name:etymology:wikidata' not in tags:
-            self.elements.append({
+            element = {
                 'id': elem.id,
                 'type': elem_type,
                 'wikidata': tags['wikidata']
-            })
+            }
+            if 'name' in tags:
+                element['name'] = tags['name']
+            self.elements.append(element)
+            if len(self.elements) % 100 == 0:
+                logging.info(f"Added {len(self.elements)} elements so far.")
             logging.debug(f"Added {elem_type} with ID {elem.id} and Wikidata ID {tags['wikidata']}")
 
     def node(self, n):
-        self.add_element(n, 'node')
+        if not self.reached_max:
+            self.add_element(n, 'node')
 
     def way(self, w):
-        self.add_element(w, 'way')
+        if not self.reached_max:
+            self.add_element(w, 'way')
 
     def relation(self, r):
-        self.add_element(r, 'relation')
+        if not self.reached_max:
+            self.add_element(r, 'relation')
 
-# Indlæs OSM-data
-handler = OSMHandler()
-logging.info("Starting to apply OSM file...")
-handler.apply_file('denmark.osm.pbf')
-logging.info(f"Finished applying OSM file. Found {len(handler.elements)} elements.")
+def cache_result_to_file(result, filename):
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(result, f)
 
-# Trin 2 og 3: Forespørg Wikidata for 'opkaldt efter' (P138) og opret output
+def read_cache_from_file(filename):
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+# Step 1: Read from cache or process OSM file
+cache_file_step1 = 'step1_cache.json'
+cached_elements = read_cache_from_file(cache_file_step1)
+max_elements = None  # Set the max limit for elements
+
+if cached_elements:
+    logging.info(f"Loaded {len(cached_elements)} elements from cache.")
+    handler = OSMHandler(max_elements=max_elements)
+    handler.elements = cached_elements
+else:
+    handler = OSMHandler(max_elements=max_elements)
+    logging.info("Starting to apply OSM file...")
+    handler.apply_file(osmFile)
+    logging.info(f"Finished applying OSM file. Found {len(handler.elements)} elements.")
+    cache_result_to_file(handler.elements, cache_file_step1)
+
+# Step 2: Ask Wikidata for 'named after' (P138)
 endpoint_url = "https://query.wikidata.org/sparql"
 query_template = """
 SELECT ?item ?namedAfter WHERE {{
-  VALUES ?item {{ wd:{wikidata_id} }}
+  VALUES ?item {{ {wikidata_ids} }}
   OPTIONAL {{ ?item wdt:P138 ?namedAfter. }}
 }}
 """
 
-output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID']]
+wikidata_results = {}
+cache_file_step2 = 'step2_cache.json'
+cached_results = read_cache_from_file(cache_file_step2)
 
+if cached_results:
+    logging.info("Loaded results from cache.")
+    wikidata_results = cached_results
+
+# Filter out elements with already queried Wikidata IDs
+elements_to_query = [elem for elem in handler.elements if elem['wikidata'] not in wikidata_results]
+
+if not cached_results:
+    batch_size = 100
+    for i in range(0, len(elements_to_query), batch_size):
+        batch = elements_to_query[i:i + batch_size]
+        wikidata_ids = " ".join(f"wd:{elem['wikidata']}" for elem in batch)
+        query = query_template.format(wikidata_ids=wikidata_ids)
+        if i % 1000 == 0:
+            logging.info(f"Querying Wikidata for {i} items so far.")
+        logging.debug(f"Querying Wikidata for batch {i // batch_size + 1}...")
+        response = requests.get(endpoint_url, params={'query': query, 'format': 'json'})
+        if response.content:
+            data = response.json()
+        else:
+            logging.error(f"Empty response for batch {i // batch_size + 1}")
+            data = {'results': {'bindings': []}}
+        
+        for elem in batch:
+            wikidata_id = elem['wikidata']
+            named_after_id = None
+            for result in data['results']['bindings']:
+                if result['item']['value'].endswith(wikidata_id):
+                    if 'namedAfter' in result:
+                        named_after_url = result['namedAfter']['value']
+                        named_after_id = named_after_url.split('/')[-1]
+                    break
+            if named_after_id:
+                wikidata_results[wikidata_id] = named_after_id
+                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter ID {named_after_id}")
+        time.sleep(1)  # To avoid hitting rate limits
+
+    cache_result_to_file(wikidata_results, cache_file_step2)
+
+# Step 3: Combine results and write output to CSV file
+output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID', 'Name']]
 for elem in handler.elements:
     wikidata_id = elem['wikidata']
-    query = query_template.format(wikidata_id=wikidata_id)
-    logging.debug(f"Querying Wikidata for ID {wikidata_id}...")
-    response = requests.get(endpoint_url, params={'query': query, 'format': 'json'})
-    data = response.json()
-    named_after_id = None
-    if data['results']['bindings']:
-        result = data['results']['bindings'][0]
-        if 'namedAfter' in result:
-            named_after_url = result['namedAfter']['value']
-            named_after_id = named_after_url.split('/')[-1]
-    osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
-    output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_id])
-    logging.debug(f"Processed element {elem['id']} with namedAfter ID {named_after_id}")
+    if wikidata_id in wikidata_results:
+        named_after_id = wikidata_results[wikidata_id]
+        osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
+        name = elem.get('name', '')
+        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_id, name])
 
-# Skriv output til CSV-fil
 with open('osm_etymology_data.csv', 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
     writer.writerows(output_rows)
