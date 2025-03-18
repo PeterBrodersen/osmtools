@@ -61,7 +61,7 @@ def read_cache_from_file(filename):
     return None
 
 # Step 1: Read from cache or process OSM file
-cache_file_step1 = 'step1_cache.json'
+cache_file_step1 = 'cache_osm_candidates.json'
 cached_elements = read_cache_from_file(cache_file_step1)
 max_elements = None  # Set the max limit for elements
 
@@ -86,7 +86,7 @@ SELECT ?item ?namedAfter WHERE {{
 """
 
 wikidata_results = {}
-cache_file_step2 = 'step2_cache.json'
+cache_file_step2 = 'cache_wikidata_named_after.json'
 cached_results = read_cache_from_file(cache_file_step2)
 
 if cached_results:
@@ -114,13 +114,13 @@ if not cached_results:
         
         for elem in batch:
             wikidata_id = elem['wikidata']
-            named_after_ids = []
+            named_after_ids = set()
             for result in data['results']['bindings']:
                 if result['item']['value'].endswith(wikidata_id):
                     if 'namedAfter' in result:
                         named_after_url = result['namedAfter']['value']
                         named_after_id = named_after_url.split('/')[-1]
-                        named_after_ids.append(named_after_id)
+                        named_after_ids.add(named_after_id)
             if named_after_ids:
                 wikidata_results[wikidata_id] = ";".join(named_after_ids)
                 logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]}")
