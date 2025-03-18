@@ -114,16 +114,16 @@ if not cached_results:
         
         for elem in batch:
             wikidata_id = elem['wikidata']
-            named_after_id = None
+            named_after_ids = []
             for result in data['results']['bindings']:
                 if result['item']['value'].endswith(wikidata_id):
                     if 'namedAfter' in result:
                         named_after_url = result['namedAfter']['value']
                         named_after_id = named_after_url.split('/')[-1]
-                    break
-            if named_after_id:
-                wikidata_results[wikidata_id] = named_after_id
-                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter ID {named_after_id}")
+                        named_after_ids.append(named_after_id)
+            if named_after_ids:
+                wikidata_results[wikidata_id] = ";".join(named_after_ids)
+                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]}")
         time.sleep(1)  # To avoid hitting rate limits
 
     cache_result_to_file(wikidata_results, cache_file_step2)
@@ -133,10 +133,10 @@ output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID'
 for elem in handler.elements:
     wikidata_id = elem['wikidata']
     if wikidata_id in wikidata_results:
-        named_after_id = wikidata_results[wikidata_id]
+        named_after_ids = wikidata_results[wikidata_id]
         osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
         name = elem.get('name', '')
-        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_id, name])
+        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_ids, name])
 
 with open('osm_etymology_data.csv', 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
