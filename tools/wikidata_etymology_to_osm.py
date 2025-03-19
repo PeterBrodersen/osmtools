@@ -79,9 +79,10 @@ else:
 # Step 2: Ask Wikidata for 'named after' (P138)
 endpoint_url = "https://query.wikidata.org/sparql"
 query_template = """
-SELECT ?item ?namedAfter WHERE {{
+SELECT ?item ?namedAfter ?namedAfterLabel WHERE {{
   VALUES ?item {{ {wikidata_ids} }}
   OPTIONAL {{ ?item wdt:P138 ?namedAfter. }}
+  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "da,en". }}
 }}
 """
 
@@ -115,28 +116,35 @@ if not cached_results:
         for elem in batch:
             wikidata_id = elem['wikidata']
             named_after_ids = set()
+            named_after_labels = {}
             for result in data['results']['bindings']:
                 if result['item']['value'].endswith(wikidata_id):
                     if 'namedAfter' in result:
                         named_after_url = result['namedAfter']['value']
                         named_after_id = named_after_url.split('/')[-1]
                         named_after_ids.add(named_after_id)
+                        if 'namedAfterLabel' in result:
+                            named_after_labels[named_after_id] = result['namedAfterLabel']['value']
             if named_after_ids:
-                wikidata_results[wikidata_id] = ";".join(named_after_ids)
-                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]}")
+                wikidata_results[wikidata_id] = {
+                    'ids': ";".join(named_after_ids),
+                    'labels': ";".join(named_after_labels[named_after_id] for named_after_id in named_after_ids)
+                }
+                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]['ids']} and labels {wikidata_results[wikidata_id]['labels']}")
         time.sleep(1)  # To avoid hitting rate limits
 
     cache_result_to_file(wikidata_results, cache_file_step2)
 
 # Step 3: Combine results and write output to CSV file
-output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID', 'Name']]
+output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID', 'NamedAfter_Label', 'Name']]
 for elem in handler.elements:
     wikidata_id = elem['wikidata']
     if wikidata_id in wikidata_results:
-        named_after_ids = wikidata_results[wikidata_id]
+        named_after_ids = wikidata_results[wikidata_id]['ids']
+        named_after_labels = wikidata_results[wikidata_id]['labels']
         osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
         name = elem.get('name', '')
-        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_ids, name])
+        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_ids, named_after_labels, name])
 
 with open('osm_etymology_data.csv', 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
