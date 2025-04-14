@@ -137,6 +137,8 @@ if not cached_results:
 
 # Step 3: Combine results and write output to CSV file
 output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID', 'NamedAfter_Label', 'Name']]
+object_lines = []  # To store objects for objects.txt
+
 for elem in handler.elements:
     wikidata_id = elem['wikidata']
     if wikidata_id in wikidata_results:
@@ -145,8 +147,19 @@ for elem in handler.elements:
         osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
         name = elem.get('name', '')
         output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_ids, named_after_labels, name])
+        
+        # Add object to the list for objects.txt
+        object_prefix = {'node': 'n', 'way': 'w', 'relation': 'r'}.get(elem['type'], '')
+        if object_prefix:
+            object_lines.append(f"{object_prefix}{elem['id']}")
 
+# Write output to CSV file
 with open('osm_etymology_data.csv', 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
     writer.writerows(output_rows)
 logging.info("Finished writing output to osm_etymology_data.csv")
+
+# Write objects to objects.txt
+with open('objects.txt', 'w', encoding='utf-8') as f:
+    f.write(",".join(object_lines))
+logging.info("Finished writing output to objects.txt")
