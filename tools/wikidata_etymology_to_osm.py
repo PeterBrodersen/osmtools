@@ -107,10 +107,14 @@ if not cached_results:
             logging.info(f"Querying Wikidata for {i} items so far.")
         logging.debug(f"Querying Wikidata for batch {i // batch_size + 1}...")
         response = requests.get(endpoint_url, params={'query': query, 'format': 'json'})
-        if response.content:
-            data = response.json()
+        if response.status_code == 200:
+            if response.content:
+                data = response.json()
+            else:
+                logging.error(f"Empty response for batch {i // batch_size + 1}")
+                data = {'results': {'bindings': []}}
         else:
-            logging.error(f"Empty response for batch {i // batch_size + 1}")
+            logging.error(f"Error querying Wikidata: HTTP {response.status_code} - {response.text}")
             data = {'results': {'bindings': []}}
         
         for elem in batch:
