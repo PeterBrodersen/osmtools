@@ -165,6 +165,12 @@
                 if (osmRelation) {
                     quickStatements += `LAST|P402|"${osmRelation}"\n`;
                 }
+            } else if (type === 'Surname') {
+                quickStatements += 'LAST|P31|Q101352\n';
+                quickStatements += 'LAST|P282|Q8229\n';
+                if (label) {
+                    quickStatements += `LAST|P1705|da:"${label}"\n`;
+                }
             }
 
             if (label) {
@@ -207,6 +213,10 @@
                 }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
+            } else if (type === 'Surname') {
+                subType.innerHTML += '<option value="Surname">Surname</option>';
+                document.getElementById('humanFields').style.display = 'none';
+                document.getElementById('cityFields').style.display = 'none';
             }
             updateQuickStatements();
         }
@@ -251,6 +261,7 @@
         <select id="type" name="type" onchange="updateSubTypeOptions()">
             <option value="Human">Human</option>
             <option value="Location">Location</option>
+            <option value="Surname">Surname</option>
         </select><br><br>
 
         <label for="subType">Subtype:</label>
