@@ -175,8 +175,12 @@
                 if (osmRelation) {
                     quickStatements += `LAST|P402|"${osmRelation}"\n`;
                 }
-            } else if (type === 'Surname') {
-                quickStatements += 'LAST|P31|Q101352\n';
+            } else if (type === 'Name') {
+                if (subType === 'Surname') {
+                    quickStatements += 'LAST|P31|Q101352\n';
+                } else if (subType === 'First name') {
+                    quickStatements += 'LAST|P31|Q2793400\n';
+                }
                 quickStatements += 'LAST|P282|Q8229\n';
                 if (label) {
                     quickStatements += `LAST|P1705|da:"${label}"\n`;
@@ -223,8 +227,9 @@
                 }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
-            } else if (type === 'Surname') {
+            } else if (type === 'Name') {
                 subType.innerHTML += '<option value="Surname">Surname</option>';
+                subType.innerHTML += '<option value="First name">First name</option>';
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'none';
             }
@@ -271,7 +276,7 @@
         <select id="type" name="type" onchange="updateSubTypeOptions()">
             <option value="Human">Human</option>
             <option value="Location">Location</option>
-            <option value="Surname">Surname</option>
+            <option value="Name">Name</option>
         </select><br><br>
 
         <label for="subType">Subtype:</label>
