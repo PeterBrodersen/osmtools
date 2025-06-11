@@ -3,6 +3,7 @@ import psycopg2
 import sys
 import os
 import argparse
+import re
 
 class TagUpdaterHandler(osmium.SimpleHandler):
     def __init__(self, node_ids, way_ids, key, value):
@@ -26,8 +27,9 @@ class TagUpdaterHandler(osmium.SimpleHandler):
             tags[self.key] = self.value
             self.updated_ways[w.id] = tags
 
-# Dummy function to get node and way IDs from Postgres
-def get_osm_ids_from_db(conn, param1, param2):
+
+# Function to get node and way IDs from Postgres
+def get_all_osm_ids_from_db(conn):
     queries = [
         ("'point'", "node_ids"),
         ("'line','polygon'", "way_ids")
@@ -48,30 +50,30 @@ def get_osm_ids_from_db(conn, param1, param2):
     print(f"Found {len(results['node_ids'])} nodes and {len(results['way_ids'])} ways")
     return results["node_ids"], results["way_ids"]
 
+
 # Function to update OSM file with key/value for given node and way IDs
 def update_osm_tags(input_file, node_ids, way_ids, key, value, output_file):
     handler = TagUpdaterHandler(node_ids, way_ids, key, value)
     handler.apply_file(input_file)
     print(f"Nodes to update: {len(handler.updated_nodes)}; Ways to update: {len(handler.updated_ways)}")
 
-    import osmium as o
-    writer = o.SimpleWriter(output_file, o.osm.osm_entity_bits.ALL)
+    writer = osmium.SimpleWriter(output_file, osmium.osm.osm_entity_bits.ALL)
 
-    class CopyHandler(o.SimpleHandler):
+    class CopyHandler(osmium.SimpleHandler):
         def __init__(self, updated_nodes, updated_ways):
             super().__init__()
             self.updated_nodes = updated_nodes  # id -> tags
             self.updated_ways = updated_ways    # id -> tags
         def node(self, n):
             if n.id in self.updated_nodes:
-                mnode = o.osm.mutable.Node(n)
+                mnode = osmium.osm.mutable.Node(n)
                 mnode.tags = [(k, v) for k, v in self.updated_nodes[n.id].items()]
                 writer.add_node(mnode)
             else:
                 writer.add_node(n)
         def way(self, w):
             if w.id in self.updated_ways:
-                mway = o.osm.mutable.Way(w)
+                mway = osmium.osm.mutable.Way(w)
                 mway.tags = [(k, v) for k, v in self.updated_ways[w.id].items()]
                 writer.add_way(mway)
             else:
@@ -83,15 +85,98 @@ def update_osm_tags(input_file, node_ids, way_ids, key, value, output_file):
     writer.close()
     print(f"Wrote updated data to {output_file}")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Update OSM tags for selected node and way IDs.")
-    parser.add_argument("input_file", nargs="?", help="Input OSM or PBF file")
-    parser.add_argument("output_file", nargs="?", help="Output OSM or PBF file")
-    args = parser.parse_args()
+# Function to update all OSM names
+def get_all_wikidata_descriptions(conn):
+    descriptions = {}
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT itemid, COALESCE(name || ', ' || description, name) AS description
+            FROM osmetymology.wikidata
+            WHERE description IS NOT NULL
+        """)
+        for itemid, description in cur.fetchall():
+            descriptions[itemid] = description
+    return descriptions
 
-    if not args.input_file or not args.output_file:
-        print("Usage: python osm_add_tags.py <input_file> <output_file>")
-        sys.exit(1)
+# Function to update names in OSM based on Wikidata descriptions
+def update_osm_names_from_description(input_file, descriptions, output_file):
+    class NameUpdateHandler(osmium.SimpleHandler):
+        def __init__(self, descriptions):
+            super().__init__()
+            self.descriptions = descriptions
+            self.updated_nodes = {}
+            self.updated_ways = {}
+            self.qid_pattern = re.compile(r"^Q[0-9]+$")
+
+        def node(self, n):
+            tags = dict(n.tags)
+            name = tags.get("name")
+            qid = tags.get("name:etymology:wikidata")
+            if name and qid and self.qid_pattern.match(qid):
+                desc = self.descriptions.get(qid)
+                if desc:
+                    tags["name"] = f"{name} [{desc}]"
+                    self.updated_nodes[n.id] = tags
+
+        def way(self, w):
+            tags = dict(w.tags)
+            name = tags.get("name")
+            qid = tags.get("name:etymology:wikidata")
+            if name and qid and self.qid_pattern.match(qid):
+                desc = self.descriptions.get(qid)
+                if desc:
+                    tags["name"] = f"{name} [{desc}]"
+                    self.updated_ways[w.id] = tags
+
+    handler = NameUpdateHandler(descriptions)
+    handler.apply_file(input_file)
+    print(f"Nodes to update: {len(handler.updated_nodes)}; Ways to update: {len(handler.updated_ways)}")
+
+    writer = osmium.SimpleWriter(output_file, osmium.osm.osm_entity_bits.ALL)
+
+    class CopyHandler(osmium.SimpleHandler):
+        def __init__(self, updated_nodes, updated_ways):
+            super().__init__()
+            self.updated_nodes = updated_nodes
+            self.updated_ways = updated_ways
+        def node(self, n):
+            if n.id in self.updated_nodes:
+                mnode = osmium.osm.mutable.Node(n)
+                mnode.tags = [(k, v) for k, v in self.updated_nodes[n.id].items()]
+                writer.add_node(mnode)
+            else:
+                writer.add_node(n)
+        def way(self, w):
+            if w.id in self.updated_ways:
+                mway = osmium.osm.mutable.Way(w)
+                mway.tags = [(k, v) for k, v in self.updated_ways[w.id].items()]
+                writer.add_way(mway)
+            else:
+                writer.add_way(w)
+        def relation(self, r):
+            writer.add_relation(r)
+    copy_handler = CopyHandler(handler.updated_nodes, handler.updated_ways)
+    copy_handler.apply_file(input_file)
+    writer.close()
+    print(f"Wrote updated data to {output_file}")
+
+
+def run_add_tags(conn, input_file, output_file):
+    node_ids, way_ids = get_all_osm_ids_from_db(conn)
+    update_osm_tags(input_file, node_ids, way_ids, 'etymology_has_male', 'yes', output_file)
+
+
+def run_update_names(conn, input_file, output_file):
+    descriptions = get_all_wikidata_descriptions(conn)
+    update_osm_names_from_description(input_file, descriptions, output_file)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Update OSM tags or names based on Wikidata.")
+    parser.add_argument("feature", choices=["add_tags", "update_names"], help="Feature to run: add_tags or update_names")
+    parser.add_argument("input_file", help="Input OSM or PBF file")
+    parser.add_argument("output_file", help="Output OSM or PBF file")
+    args = parser.parse_args()
 
     input_file = args.input_file
     output_file = args.output_file
@@ -110,6 +195,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     conn = psycopg2.connect(**db_params)
-    node_ids, way_ids = get_osm_ids_from_db(conn, 'foo', 'bar')
-    update_osm_tags(input_file, node_ids, way_ids, 'etymology_has_male', 'yes', output_file)
+    if args.feature == "add_tags":
+        run_add_tags(conn, input_file, output_file)
+    elif args.feature == "update_names":
+        run_update_names(conn, input_file, output_file)
     conn.close()
