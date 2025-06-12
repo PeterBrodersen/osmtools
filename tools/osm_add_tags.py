@@ -90,7 +90,7 @@ def get_all_wikidata_descriptions(conn):
     descriptions = {}
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT itemid, COALESCE(name || ', ' || description, name) AS description
+            SELECT itemid, COALESCE(name || '; ' || description, name) AS description
             FROM osmetymology.wikidata
             WHERE description IS NOT NULL
         """)
@@ -112,8 +112,13 @@ def update_osm_names_from_description(input_file, descriptions, output_file):
             tags = dict(n.tags)
             name = tags.get("name")
             qid = tags.get("name:etymology:wikidata")
-            if name and qid and self.qid_pattern.match(qid):
-                desc = self.descriptions.get(qid)
+            etym = tags.get("name:etymology")
+            desc = None
+            if name:
+                if qid and self.qid_pattern.match(qid):
+                    desc = self.descriptions.get(qid)
+                elif etym:
+                    desc = etym
                 if desc:
                     tags["name"] = f"{name} [{desc}]"
                     self.updated_nodes[n.id] = tags
@@ -122,8 +127,13 @@ def update_osm_names_from_description(input_file, descriptions, output_file):
             tags = dict(w.tags)
             name = tags.get("name")
             qid = tags.get("name:etymology:wikidata")
-            if name and qid and self.qid_pattern.match(qid):
-                desc = self.descriptions.get(qid)
+            etym = tags.get("name:etymology")
+            desc = None
+            if name:
+                if qid and self.qid_pattern.match(qid):
+                    desc = self.descriptions.get(qid)
+                elif etym:
+                    desc = etym
                 if desc:
                     tags["name"] = f"{name} [{desc}]"
                     self.updated_ways[w.id] = tags
