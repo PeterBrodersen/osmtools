@@ -186,6 +186,10 @@
                     quickStatements += 'LAST|P31|Q101352\n';
                 } else if (subType === 'First name') {
                     quickStatements += 'LAST|P31|Q202444\n';
+                } else if (subType === 'First name (male)') {
+                    quickStatements += 'LAST|P31|Q12308941\n';
+                } else if (subType === 'First name (female)') {
+                    quickStatements += 'LAST|P31|Q11879590\n';
                 }
                 quickStatements += 'LAST|P282|Q8229\n';
                 if (label) {
@@ -236,6 +240,8 @@
             } else if (type === 'Name') {
                 subType.innerHTML += '<option value="Surname">Surname</option>';
                 subType.innerHTML += '<option value="First name">First name</option>';
+                subType.innerHTML += '<option value="First name (male)">First name (male)</option>';
+                subType.innerHTML += '<option value="First name (female)">First name (female)</option>';
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'none';
             }
