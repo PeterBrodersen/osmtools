@@ -178,9 +178,21 @@
                 let word = words[i];
                 let sparql = '';
                 if (type === 'firstName') {
-                    sparql = `SELECT ?item ?itemLabel WHERE { ?item rdfs:label "${word}"@da. ?item wdt:P31 ?type. VALUES ?type { wd:Q202444 wd:Q12308941 wd:Q11879590 wd:Q3409032 } SERVICE wikibase:label { bd:serviceParam wikibase:language \"da,en\". } } LIMIT 1`;
+                    sparql = `SELECT ?item ?itemLabel WHERE {
+                        ?item rdfs:label ?lbl.
+                        VALUES ?lbl { "${word}"@da "${word}"@en "${word}"@mul }
+                        ?item rdfs:label ?lbl.
+                        ?item wdt:P31 ?type.
+                        VALUES ?type { wd:Q202444 wd:Q12308941 wd:Q11879590 wd:Q3409032 }
+                        SERVICE wikibase:label { bd:serviceParam wikibase:language "da,en,mul". }
+                    } LIMIT 1`;
                 } else {
-                    sparql = `SELECT ?item ?itemLabel WHERE { ?item rdfs:label "${word}"@da. ?item wdt:P31 wd:Q101352. SERVICE wikibase:label { bd:serviceParam wikibase:language \"da,en\". } } LIMIT 1`;
+                    sparql = `SELECT ?item ?itemLabel WHERE {
+                        VALUES ?lbl { "${word}"@da "${word}"@en "${word}"@mul }
+                        ?item rdfs:label ?lbl.
+                        ?item wdt:P31 wd:Q101352.
+                        SERVICE wikibase:label { bd:serviceParam wikibase:language "da,en,mul". }
+                    } LIMIT 1`;
                 }
                 let url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
                 let response = await fetch(url);
