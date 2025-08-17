@@ -319,7 +319,7 @@
                 firstNameItems.forEach((item, idx) => {
                     if (item.id) {
                         if (firstNameItems.length > 1) {
-                            quickStatements += `LAST|P735|${item.id}|P1545|${idx + 1}\n`;
+                            quickStatements += `LAST|P735|${item.id}|P1545|"${idx + 1}"\n`;
                         } else {
                             quickStatements += `LAST|P735|${item.id}\n`;
                         }
@@ -330,7 +330,7 @@
                 surnameItems.forEach((item, idx) => {
                     if (item.id) {
                         if (surnameItems.length > 1) {
-                            quickStatements += `LAST|P734|${item.id}|P1545|${idx + 1}\n`;
+                            quickStatements += `LAST|P734|${item.id}|P1545|"${idx + 1}"\n`;
                         } else {
                             quickStatements += `LAST|P734|${item.id}\n`;
                         }
