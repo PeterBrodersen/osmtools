@@ -150,8 +150,20 @@
         let firstNameItems = [];
         let surnameItems = [];
 
-        async function lookupNameParts(type) {
+        let lookupTimers = { firstName: null, surname: null };
+        let lookupTokens = { firstName: '', surname: '' };
+
+        function lookupNameParts(type) {
             let input = document.getElementById(type).value.trim();
+            let token = input.toLowerCase();
+            lookupTokens[type] = token;
+            if (lookupTimers[type]) clearTimeout(lookupTimers[type]);
+            lookupTimers[type] = setTimeout(() => {
+                doLookupNameParts(type, input, token);
+            }, 300);
+        }
+
+        async function doLookupNameParts(type, input, token) {
             let words = input.split(/\s+/).filter(Boolean);
             let resultsDiv = document.getElementById(type + 'Results');
             resultsDiv.innerHTML = '';
@@ -172,6 +184,8 @@
                 }
                 let url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
                 let response = await fetch(url);
+                // Check if the input has changed since the request was sent
+                if (lookupTokens[type] !== token) return;
                 let data = await response.json();
                 if (data.results.bindings.length > 0) {
                     let item = data.results.bindings[0].item.value;
@@ -182,7 +196,8 @@
                     items.push({ id: null, label: word });
                 }
             }
-            // Show results as links
+            // Check again before updating results
+            if (lookupTokens[type] !== token) return;
             let html = words.map((w, i) => {
                 let item = items[i];
                 if (item.id) {
