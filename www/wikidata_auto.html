@@ -133,7 +133,68 @@
 
         function getSourceStatement(source) {
             if (!source) return '';
-            return source.match(/^Q\d+$/) ? `|S248|${source}` : `|S854|"${source}"`;
+            source = source.trim();
+            if (source.match(/^Q\d+$/)) { // Wikidata item ID
+                return `|S248|${source}`;
+            } else if (source.match(/^geni\s+(\d+)$/i)) { // Geni ID
+                const geniId = source.match(/^geni\s+(\d+)$/i)[1];
+                return `|S2600|${geniId}`;
+            } else if (source.match(/^gravsted\s+(.+)$/i)) { // Gravsted ID
+                const gravstedId = source.match(/^gravsted\s+(.+)$/i)[1];
+                return `|P4359|"${gravstedId}"`;
+            } else { // URL or other source
+                return `|S854|"${source}"`;
+            }
+        }
+
+        let firstNameItems = [];
+        let surnameItems = [];
+
+        async function lookupNameParts(type) {
+            let input = document.getElementById(type).value.trim();
+            let words = input.split(/\s+/).filter(Boolean);
+            let resultsDiv = document.getElementById(type + 'Results');
+            resultsDiv.innerHTML = '';
+            if (words.length === 0) {
+                if (type === 'firstName') firstNameItems = [];
+                if (type === 'surname') surnameItems = [];
+                updateQuickStatements();
+                return;
+            }
+            let items = [];
+            for (let i = 0; i < words.length; i++) {
+                let word = words[i];
+                let sparql = '';
+                if (type === 'firstName') {
+                    sparql = `SELECT ?item ?itemLabel WHERE { ?item rdfs:label "${word}"@da. ?item wdt:P31 ?type. VALUES ?type { wd:Q202444 wd:Q12308941 wd:Q11879590 wd:Q3409032 } SERVICE wikibase:label { bd:serviceParam wikibase:language \"da,en\". } } LIMIT 1`;
+                } else {
+                    sparql = `SELECT ?item ?itemLabel WHERE { ?item rdfs:label "${word}"@da. ?item wdt:P31 wd:Q101352. SERVICE wikibase:label { bd:serviceParam wikibase:language \"da,en\". } } LIMIT 1`;
+                }
+                let url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
+                let response = await fetch(url);
+                let data = await response.json();
+                if (data.results.bindings.length > 0) {
+                    let item = data.results.bindings[0].item.value;
+                    let itemId = item.split('/').pop();
+                    let label = data.results.bindings[0].itemLabel.value;
+                    items.push({ id: itemId, label });
+                } else {
+                    items.push({ id: null, label: word });
+                }
+            }
+            // Show results as links
+            let html = words.map((w, i) => {
+                let item = items[i];
+                if (item.id) {
+                    return `<a href="https://www.wikidata.org/wiki/${item.id}" target="_blank">${item.label}</a>`;
+                } else {
+                    return `<span>${item.label}</span>`;
+                }
+            }).join(' ');
+            resultsDiv.innerHTML = html;
+            if (type === 'firstName') firstNameItems = items;
+            if (type === 'surname') surnameItems = items;
+            updateQuickStatements();
         }
 
         function updateQuickStatements() {
@@ -226,6 +287,29 @@
                     }
                 });
             }
+            // Add given names (P735) and family names (P734) from lookup
+            if (firstNameItems.length > 0) {
+                firstNameItems.forEach((item, idx) => {
+                    if (item.id) {
+                        if (firstNameItems.length > 1) {
+                            quickStatements += `LAST|P735|${item.id}|P1545|${idx + 1}\n`;
+                        } else {
+                            quickStatements += `LAST|P735|${item.id}\n`;
+                        }
+                    }
+                });
+            }
+            if (surnameItems.length > 0) {
+                surnameItems.forEach((item, idx) => {
+                    if (item.id) {
+                        if (surnameItems.length > 1) {
+                            quickStatements += `LAST|P734|${item.id}|P1545|${idx + 1}\n`;
+                        } else {
+                            quickStatements += `LAST|P734|${item.id}\n`;
+                        }
+                    }
+                });
+            }
 
             document.getElementById('quickStatements').value = quickStatements;
             updateQuickStatementsLink(quickStatements);
@@ -292,13 +376,13 @@
     <h1>Wikidata Auto</h1>
     <form>
         <label for="label">Danish Label:</label>
-        <input type="text" id="label" name="label" oninput="updateQuickStatements()"><br><br>
+        <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br><br>
 
         <label for="description">Danish Description:</label>
-        <input type="text" id="description" name="description" oninput="updateQuickStatements()"><br><br>
+        <input type="text" id="description" name="description" oninput="updateQuickStatements()" size="50"><br><br>
 
         <label for="alias">Danish Alias:</label>
-        <input type="text" id="alias" name="alias" oninput="updateQuickStatements()"><br><br>
+        <input type="text" id="alias" name="alias" oninput="updateQuickStatements()" size="50"><br><br>
 
         <label for="type">Type:</label>
         <select id="type" name="type" onchange="updateSubTypeOptions()">
@@ -327,6 +411,17 @@
             <select id="occupation" name="occupation" onchange="updateQuickStatements()">
                 <!-- Options will be populated by JavaScript -->
             </select><br><br>
+
+            <label for="source">Source (Wikidata item or URL):</label>
+            <input type="text" id="source" name="source" oninput="updateQuickStatements()"><br><br>
+
+            <label for="firstName">First name:</label>
+            <input type="text" id="firstName" name="firstName" oninput="lookupNameParts('firstName')"><br>
+            <div id="firstNameResults"></div><br>
+
+            <label for="surname">Surname:</label>
+            <input type="text" id="surname" name="surname" oninput="lookupNameParts('surname')"><br>
+            <div id="surnameResults"></div><br>
         </div>
 
         <div id="cityFields" style="display: none;">
@@ -350,9 +445,6 @@
             <label for="osmRelation">OpenStreetMap Relation ID (P402):</label>
             <input type="text" id="osmRelation" name="osmRelation" oninput="updateQuickStatements()"><br><br>
         </div>
-
-        <label for="source">Source (Wikidata item or URL):</label>
-        <input type="text" id="source" name="source" oninput="updateQuickStatements()"><br><br>
 
         <label for="quickStatements">QuickStatements:</label><br>
         <textarea id="quickStatements" name="quickStatements" rows="10" cols="50" readonly></textarea><br>
