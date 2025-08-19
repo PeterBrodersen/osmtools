@@ -223,7 +223,9 @@
             resultsDiv.innerHTML = html;
             if (type === 'firstName') firstNameItems = items;
             if (type === 'surname') surnameItems = items;
-            updateQuickStatements();
+            if (document.getElementById('type').value === 'Human') {
+                updateQuickStatements();
+            }
         }
 
         function updateQuickStatements() {
@@ -264,6 +266,29 @@
                 }
                 if (occupation) {
                     quickStatements += `LAST|P106|${occupation}${source}\n`;
+                }
+                // Add given names (P735) and family names (P734) from lookup ONLY for Human
+                if (firstNameItems.length > 0) {
+                    firstNameItems.forEach((item, idx) => {
+                        if (item.id) {
+                            if (firstNameItems.length > 1) {
+                                quickStatements += `LAST|P735|${item.id}|P1545|"${idx + 1}"\n`;
+                            } else {
+                                quickStatements += `LAST|P735|${item.id}\n`;
+                            }
+                        }
+                    });
+                }
+                if (surnameItems.length > 0) {
+                    surnameItems.forEach((item, idx) => {
+                        if (item.id) {
+                            if (surnameItems.length > 1) {
+                                quickStatements += `LAST|P734|${item.id}|P1545|"${idx + 1}"\n`;
+                            } else {
+                                quickStatements += `LAST|P734|${item.id}\n`;
+                            }
+                        }
+                    });
                 }
             } else if (type === 'Location') {
                 if (subType) {
@@ -313,29 +338,6 @@
                 alias.split('|').forEach(a => {
                     if (a.trim()) {
                         quickStatements += `LAST|Ada|"${a.trim()}"\n`;
-                    }
-                });
-            }
-            // Add given names (P735) and family names (P734) from lookup
-            if (firstNameItems.length > 0) {
-                firstNameItems.forEach((item, idx) => {
-                    if (item.id) {
-                        if (firstNameItems.length > 1) {
-                            quickStatements += `LAST|P735|${item.id}|P1545|"${idx + 1}"\n`;
-                        } else {
-                            quickStatements += `LAST|P735|${item.id}\n`;
-                        }
-                    }
-                });
-            }
-            if (surnameItems.length > 0) {
-                surnameItems.forEach((item, idx) => {
-                    if (item.id) {
-                        if (surnameItems.length > 1) {
-                            quickStatements += `LAST|P734|${item.id}|P1545|"${idx + 1}"\n`;
-                        } else {
-                            quickStatements += `LAST|P734|${item.id}\n`;
-                        }
                     }
                 });
             }
