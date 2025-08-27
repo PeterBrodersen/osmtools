@@ -85,7 +85,7 @@ function checkURL ($url, $lineq = "") {
 		$day = $match[4];
 		$end = '+' . $year . '-' . ($month ? $month : '00') . '-' . ($day ? $day : '00') .'T00:00:00Z/' . ($month == '' ? 9 : 11);
 	}
-	if ( ! preg_match('_<tr><td>GPS koordinater</td><td>(\d+\.\d+,\d+\.\d+)</td></tr>_', $content, $match) ) {
+	if ( ! preg_match('_<td.*?>GPS koordinater</td><td.*?>(\d+\.\d+,\d+\.\d+)</td>_', $content, $match) ) {
 		return 'Error: No coordinates';
 	}
 	$coordinates = '@' . str_replace(',','/',$match[1]);
