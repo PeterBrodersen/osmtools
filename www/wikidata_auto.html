@@ -118,10 +118,25 @@
             // Add more municipalities as needed
         };
 
+        const positionsHeld = {
+            "": "Select Position",
+            "Q30185": "Mayor"
+        };
+
         function formatDate(date) {
             if (!date) return '';
             let precision = 9; // Default precision is year
-            if (date.match(/^\d{4}$/)) {
+
+            // Allow spaces and multiple delimiters between day, month, year
+            // Match: 1-2 digits, delimiter(s), 1-2 digits, delimiter(s), 4 digits
+            let dmyMatch = date.match(/^(\d{1,2})[\s\-\/\.]+(\d{1,2})[\s\-\/\.]+(\d{4})$/);
+            if (dmyMatch) {
+                let day = dmyMatch[1].padStart(2, '0');
+                let month = dmyMatch[2].padStart(2, '0');
+                let year = dmyMatch[3];
+                precision = 11;
+                date = `+${year}-${month}-${day}T00:00:00Z`;
+            } else if (date.match(/^\d{4}$/)) {
                 precision = 9;
                 date = `+${date}-00-00T00:00:00Z`;
             } else if (date.match(/^\d{4}-\d{2}$/)) {
@@ -136,6 +151,19 @@
 
         function formatCoordinates(coordinates) {
             if (!coordinates) return '';
+            // If there are three commas, treat as decimal separators
+            let commaCount = (coordinates.match(/,/g) || []).length;
+            if (commaCount === 3) {
+                // Replace the first and third commas with periods
+                let parts = coordinates.split(',');
+                if (parts.length === 4) {
+                    // "12,34, 56,78" => "12.34, 56.78"
+                    let lat = parts[0].trim() + '.' + parts[1].trim();
+                    let lon = parts[2].trim() + '.' + parts[3].trim();
+                    return `@${lat}/${lon}`;
+                }
+            }
+            // Default: split by comma, treat as lat, lon
             let [lat, lon] = coordinates.split(',').map(coord => coord.trim());
             return `@${lat}/${lon}`;
         }
@@ -246,12 +274,22 @@
             let description = document.getElementById('description').value;
             let alias = document.getElementById('alias').value;
             let occupation = document.getElementById('occupation').value;
+            let positionHeld = document.getElementById('positionHeld').value;
+            let positionStart = document.getElementById('positionStart').value;
+            let positionEnd = document.getElementById('positionEnd').value;
             let country = document.getElementById('country').checked ? 'Q35' : '';
             let municipality = document.getElementById('municipality').value;
             let coordinates = formatCoordinates(document.getElementById('coordinates').value);
             let osmNode = document.getElementById('osmNode').value;
             let osmWay = document.getElementById('osmWay').value;
             let osmRelation = document.getElementById('osmRelation').value;
+
+            // Show/hide positionHeldDates
+            if (type === 'Human' && positionHeld) {
+                document.getElementById('positionHeldDates').style.display = 'block';
+            } else {
+                document.getElementById('positionHeldDates').style.display = 'none';
+            }
 
             let quickStatements = 'CREATE\n';
 
@@ -273,6 +311,16 @@
                 }
                 if (occupation) {
                     quickStatements += `LAST|P106|${occupation}${source}\n`;
+                }
+                if (positionHeld) {
+                    quickStatements += `LAST|P39|${positionHeld}`;
+                    let start = formatDate(positionStart);
+                    let end = formatDate(positionEnd);
+                    if (start && start !== '+-00-00T00:00:00Z/9') quickStatements += `|P580|${start}`;
+                    if (end && end !== '+-00-00T00:00:00Z/9') quickStatements += `|P582|${end}`;
+                    console.log(positionHeld);
+                    console.log(source);
+                    quickStatements += `${source}\n`;
                 }
                 // Add given names (P735) and family names (P734) from lookup ONLY for Human
                 if (firstNameItems.length > 0) {
@@ -450,6 +498,17 @@
                 <!-- Options will be populated by JavaScript -->
             </select><br><br>
 
+            <label for="positionHeld">Position held:</label>
+            <select id="positionHeld" name="positionHeld" onchange="updateQuickStatements()">
+                <!-- Options will be populated by JavaScript -->
+            </select><br>
+            <div id="positionHeldDates" style="display:none;">
+                <label for="positionStart">Start date:</label>
+                <input type="text" id="positionStart" name="positionStart" oninput="updateQuickStatements()"><br>
+                <label for="positionEnd">End date:</label>
+                <input type="text" id="positionEnd" name="positionEnd" oninput="updateQuickStatements()"><br>
+            </div><br>
+
             <label for="source">Source (Wikidata item or URL):</label>
             <input type="text" id="source" name="source" oninput="updateQuickStatements()"><br><br>
 
@@ -495,6 +554,7 @@
         // Initialize the form with default values
         updateSubTypeOptions();
         populateSelectOptions(document.getElementById('occupation'), occupations);
+        populateSelectOptions(document.getElementById('positionHeld'), positionsHeld);
         populateSelectOptions(document.getElementById('municipality'), municipalities);
     </script>
 </body>
