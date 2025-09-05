@@ -147,7 +147,7 @@
                 return `|S248|${source}`;
             } else if (source.match(/^geni\s+(\d+)$/i)) { // Geni ID
                 const geniId = source.match(/^geni\s+(\d+)$/i)[1];
-                return `|S2600|${geniId}`;
+                return `|S2600|"${geniId}"`;
             } else if (source.match(/^gravsted\s+(.+)$/i)) { // Gravsted ID
                 const gravstedId = source.match(/^gravsted\s+(.+)$/i)[1];
                 return `|P4359|"${gravstedId}"`;
