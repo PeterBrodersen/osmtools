@@ -458,6 +458,47 @@
                 notification.style.display = 'none';
             }, 2000);
         }
+
+        function updateNameSplitSuggestion() {
+            const label = document.getElementById('label').value.trim();
+            const container = document.getElementById('nameSplitSuggestion');
+            if (!label) {
+                container.innerHTML = '';
+                return;
+            }
+            const parts = label.split(/\s+/);
+            if (parts.length < 2) {
+                container.innerHTML = '';
+                return;
+            }
+            let html = '<b>Split full name:</b> ';
+            for (let i = 0; i < parts.length; i++) {
+                if (i > 0) {
+                    let first = parts.slice(0, i).join(' ');
+                    let sur = parts.slice(i).join(' ');
+                    html += `<a href="#" onclick="setNameSplit('${first.replace(/'/g, "\\'")}', '${sur.replace(/'/g, "\\'")}'); return false;" style="text-decoration:none; font-size:18px; vertical-align:middle;" title='Split here'>✂</a> `;
+                }
+                html += parts[i];
+                if (i < parts.length - 1) html += ' ';
+            }
+            container.innerHTML = html;
+        }
+
+        function setNameSplit(first, sur) {
+            document.getElementById('firstName').value = first;
+            document.getElementById('surname').value = sur;
+            lookupNameParts('firstName');
+            lookupNameParts('surname');
+        }
+
+        // Wait for DOMContentLoaded before adding event listener
+        document.addEventListener('DOMContentLoaded', function() {
+            var labelInput = document.getElementById('label');
+            if (labelInput) {
+                labelInput.addEventListener('blur', updateNameSplitSuggestion);
+            }
+            updateNameSplitSuggestion();
+        });
     </script>
 </head>
 
@@ -515,6 +556,7 @@
             <label for="source">Source (Wikidata item or URL):</label>
             <input type="text" id="source" name="source" oninput="updateQuickStatements()"><br><br>
 
+            <div id="nameSplitSuggestion" style="margin-bottom: 10px;"></div>
             <label for="firstName">First name:</label>
             <input type="text" id="firstName" name="firstName" oninput="lookupNameParts('firstName')"><br>
             <div id="firstNameResults"></div><br>
