@@ -493,7 +493,7 @@
         }
 
         // Wait for DOMContentLoaded before adding event listener
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             var labelInput = document.getElementById('label');
             if (labelInput) {
                 labelInput.addEventListener('blur', updateNameSplitSuggestion);
@@ -593,7 +593,7 @@
         <textarea id="quickStatements" name="quickStatements" rows="10" cols="50" readonly></textarea><br>
         <a href="#" onclick="copyToClipboard()">Copy to Clipboard</a>
         <div id="copyNotification" style="display: none; color: green;">Copied to clipboard!</div><br>
-        <a id="quickStatementsLink" href="#" target="_blank">Open in QuickStatements</a>
+        <a id="quickStatementsLink" href="#" target="_blank" accesskey="a">Open in QuickStatements</a>
     </form>
 
     <script>
