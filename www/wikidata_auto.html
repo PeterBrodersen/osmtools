@@ -154,23 +154,46 @@
             return `${date}/${precision}`;
         }
 
-        function formatCoordinates(coordinates) {
-            if (!coordinates) return '';
-            // If there are three commas, treat as decimal separators
-            let commaCount = (coordinates.match(/,/g) || []).length;
+        // Parse a coordinates string into an object {lat, lng} or return false if invalid.
+        function parseCoordinates(str) {
+            if (!str || typeof str !== 'string') return false;
+            str = str.trim();
+            // Count commas
+            const commaCount = (str.match(/,/g) || []).length;
+            // Case A: three commas used as decimal separators, e.g. "12,34, 56,78"
             if (commaCount === 3) {
-                // Replace the first and third commas with periods
-                let parts = coordinates.split(',');
+                const parts = str.split(',');
                 if (parts.length === 4) {
-                    // "12,34, 56,78" => "12.34, 56.78"
-                    let lat = parts[0].trim() + '.' + parts[1].trim();
-                    let lon = parts[2].trim() + '.' + parts[3].trim();
-                    return `@${lat}/${lon}`;
+                    const lat = parts[0].trim() + '.' + parts[1].trim();
+                    const lng = parts[2].trim() + '.' + parts[3].trim();
+                    if (!isFinite(lat) || !isFinite(lng)) return false;
+                    return { lat: lat, lng: lng };
                 }
+                return false;
             }
-            // Default: split by comma, treat as lat, lon
-            let [lat, lon] = coordinates.split(',').map(coord => coord.trim());
-            return `@${lat}/${lon}`;
+            // Case B: standard "lat,lng" (one comma)
+            if (commaCount === 1) {
+                const parts = str.split(',');
+                if (parts.length === 2) {
+                    const lat = parts[0].trim();
+                    const lng = parts[1].trim();
+                    if (!lat || !lng || !isFinite(lat) || !isFinite(lng)) return false;
+                    return { lat: lat, lng: lng };
+                }
+                return false;
+            }
+            // Anything else is invalid
+            return false;
+        }
+
+        // Format a {lat, lng} object into QuickStatements string "@lat/lng" or return false.
+        function formatCoordinatesQS(coordObj) {
+            if (!coordObj || typeof coordObj !== 'object') return false;
+            if (!('lat' in coordObj) || !('lng' in coordObj)) return false;
+            const lat = coordObj.lat;
+            const lng = coordObj.lng;
+            if (!isFinite(lat) || !isFinite(lng)) return false;
+            return `@${lat}/${lng}`;
         }
 
         function getSourceStatement(source) {
@@ -284,7 +307,9 @@
             let positionEnd = document.getElementById('positionEnd').value;
             let country = document.getElementById('country').checked ? 'Q35' : '';
             let municipality = document.getElementById('municipality').value;
-            let coordinates = formatCoordinates(document.getElementById('coordinates').value);
+            // Parse coordinates and format for QuickStatements
+            let coordObj = parseCoordinates(document.getElementById('coordinates').value);
+            let coordinates = coordObj ? formatCoordinatesQS(coordObj) : '';
             let osmNode = document.getElementById('osmNode').value;
             let osmWay = document.getElementById('osmWay').value;
             let osmRelation = document.getElementById('osmRelation').value;
@@ -404,6 +429,19 @@
 
             document.getElementById('quickStatements').value = quickStatements;
             updateQuickStatementsLink(quickStatements);
+
+            // Show OSM link if coordinates are valid
+            var osmLinkDiv = document.getElementById('osmCoordinateLink');
+            if (osmLinkDiv) {
+                if (coordObj) {
+                    var lat = coordObj.lat;
+                    var lng = coordObj.lng;
+                    var url = 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(lat + ',' + lng) + '#map=16/' + lat + '/' + lng;
+                    osmLinkDiv.innerHTML = `<a href="${url}" target="_blank">View on OpenStreetMap</a>`;
+                } else {
+                    osmLinkDiv.innerHTML = '';
+                }
+            }
         }
 
         function updateQuickStatementsLink(quickStatements) {
@@ -578,7 +616,8 @@
             </select><br><br>
 
             <label for="coordinates">Coordinates (P625):</label>
-            <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()"><br><br>
+            <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()">
+            <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br>
 
             <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
             <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements()"><br><br>
