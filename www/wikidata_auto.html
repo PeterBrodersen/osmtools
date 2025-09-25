@@ -14,6 +14,7 @@
             "Q532": "Village",
             "Q5084": "Hamlet",
             "Q486972": "Human Settlement",
+            "Q12336407": "Holiday home area",
             "Q54050": "Hill",
             "Q131596": "Farm",
             "Q12280": "Bridge",
@@ -316,6 +317,7 @@
             let osmNode = document.getElementById('osmNode').value;
             let osmWay = document.getElementById('osmWay').value;
             let osmRelation = document.getElementById('osmRelation').value;
+            let address = document.getElementById('address').value;
 
             // Show/hide positionHeldDates
             if (type === 'Human' && positionHeld) {
@@ -351,8 +353,6 @@
                     let end = formatDate(positionEnd);
                     if (start && start !== '+-00-00T00:00:00Z/9') quickStatements += `|P580|${start}`;
                     if (end && end !== '+-00-00T00:00:00Z/9') quickStatements += `|P582|${end}`;
-                    console.log(positionHeld);
-                    console.log(source);
                     quickStatements += `${source}\n`;
                 }
                 // Add given names (P735) and family names (P734) from lookup ONLY for Human
@@ -388,6 +388,22 @@
                 if (municipality) {
                     quickStatements += `LAST|P131|${municipality}\n`;
                 }
+                if (address) {
+                    quickStatements += `LAST|P6375|da:"${address}"\n`;
+                }
+                // Elevation for Hill (P2044) in meters (unit Q11573)
+                try {
+                    let elevationVal = document.getElementById('elevation') ? document.getElementById('elevation').value.trim() : '';
+                    console.log('Elevation value:', elevationVal);
+                    if (subType === 'Q54050' && elevationVal) {
+                        // QuickStatements quantity with unit: +<value>/9 and then unit as S<item>
+                        // Using the user's requested pattern: LAST|P2044|+<value>/9|S11573
+                        let cleaned = elevationVal.replace(',', '.');
+                        if (isFinite(cleaned)) {
+                            quickStatements += `LAST|P2044|${cleaned}U11573\n`;
+                        }
+                    }
+                } catch (e) { }
                 if (coordinates) {
                     quickStatements += `LAST|P625|${coordinates}\n`;
                 }
@@ -469,6 +485,7 @@
                 }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'block';
+                document.getElementById('elevationField').style.display = (subType.value === 'Q54050') ? 'block' : 'none';
             } else if (type === 'Name') {
                 subType.innerHTML += '<option value="Surname">Surname</option>';
                 subType.innerHTML += '<option value="First name">First name</option>';
@@ -479,6 +496,69 @@
             }
             updateQuickStatements();
         }
+
+        // Toggle UI elements that depend on the selected subtype
+        function updateSubtypeUI() {
+            try {
+                var subTypeEl = document.getElementById('subType');
+                var elevationField = document.getElementById('elevationField');
+                if (subTypeEl && elevationField) {
+                    elevationField.style.display = (subTypeEl.value === 'Q54050') ? 'block' : 'none';
+                }
+            } catch (e) { }
+        }
+
+        // Debounced fetch for OSM element name tag
+        const osmFetchTimers = { node: null, way: null, relation: null };
+
+        function scheduleFetchOSM(type) {
+            try {
+                if (osmFetchTimers[type]) clearTimeout(osmFetchTimers[type]);
+                osmFetchTimers[type] = setTimeout(() => fetchOSMElementName(type), 300);
+            } catch (e) { }
+        }
+
+        async function fetchOSMElementName(type) {
+            try {
+                const id = document.getElementById('osm' + capitalize(type)).value.trim();
+                const resultDiv = document.getElementById('osm' + capitalize(type) + 'Name');
+                if (!id) {
+                    if (resultDiv) resultDiv.textContent = '';
+                    return;
+                }
+                // Basic validation: id should be digits
+                if (!/^\d+$/.test(id)) {
+                    if (resultDiv) resultDiv.textContent = 'Invalid ID';
+                    return;
+                }
+                const url = `https://api.openstreetmap.org/api/0.6/${type}/${id}`;
+                const resp = await fetch(url);
+                if (!resp.ok) {
+                    if (resultDiv) resultDiv.textContent = `OSM ${type} not found`;
+                    return;
+                }
+                const text = await resp.text();
+                // parse minimal XML to find tag k="name"
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(text, 'application/xml');
+                const elem = xml.querySelector(type);
+                if (!elem) {
+                    if (resultDiv) resultDiv.textContent = '';
+                    return;
+                }
+                const nameTag = elem.querySelector('tag[k="name"]');
+                if (nameTag) {
+                    const name = nameTag.getAttribute('v');
+                    if (resultDiv) resultDiv.textContent = `OSM name: ${name}`;
+                } else {
+                    if (resultDiv) resultDiv.textContent = 'No name tag';
+                }
+            } catch (err) {
+                // swallow network errors silently
+            }
+        }
+
+        function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
         function populateSelectOptions(selectElement, options) {
             for (let value in options) {
@@ -565,7 +645,7 @@
         </select><br><br>
 
         <label for="subType">Subtype:</label>
-        <select id="subType" name="subType" onchange="updateQuickStatements()">
+        <select id="subType" name="subType" onchange="updateSubtypeUI(); updateQuickStatements()">
             <!-- Options will be populated by JavaScript -->
         </select><br><br>
 
@@ -620,16 +700,30 @@
 
             <label for="coordinates">Coordinates (P625):</label>
             <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()">
-            <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br>
+            <!-- <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br> -->
+            <div id="osmCoordinateLink"></div><br>
+
+            <div id="elevationField" style="display:none; margin-bottom:8px;">
+                <label for="elevation">Elevation (meters, P2044):</label>
+                <input type="text" id="elevation" name="elevation" oninput="updateQuickStatements()"
+                    placeholder="e.g. 55.3">
+            </div><br>
+
+            <label for="address">Address (P6375):</label>
+            <input type="text" id="address" name="address" oninput="updateQuickStatements()" size="50"><br><br>
 
             <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
-            <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements()"><br><br>
+            <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements(); scheduleFetchOSM('node')">
+            <div id="osmNodeName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
 
             <label for="osmWay">OpenStreetMap Way ID (P10689):</label>
-            <input type="text" id="osmWay" name="osmWay" oninput="updateQuickStatements()"><br><br>
+            <input type="text" id="osmWay" name="osmWay" oninput="updateQuickStatements(); scheduleFetchOSM('way')">
+            <div id="osmWayName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
 
             <label for="osmRelation">OpenStreetMap Relation ID (P402):</label>
-            <input type="text" id="osmRelation" name="osmRelation" oninput="updateQuickStatements()"><br><br>
+            <input type="text" id="osmRelation" name="osmRelation"
+                oninput="updateQuickStatements(); scheduleFetchOSM('relation')">
+            <div id="osmRelationName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
         </div>
 
         <label for="quickStatements">QuickStatements:</label><br>
