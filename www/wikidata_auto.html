@@ -557,7 +557,7 @@
                 } else {
                     if (resultDiv) {
                         const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
-                        resultDiv.innerHTML = `<a href="${osmUrl}" target="_blank">OSM ${type} ${escapeHtml(id)} (no name tag)</a>`;
+                        resultDiv.innerHTML = `<a href="${osmUrl}" target="_blank">OSM ${type} ${escapeHtml(id)} (no name tag)</a> <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
                     }
                 }
             } catch (err) {
