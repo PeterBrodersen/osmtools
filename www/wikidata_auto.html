@@ -621,6 +621,8 @@
                 };
                 if (tags['place'] && placeToQ[tags['place']]) {
                     document.getElementById('subType').value = placeToQ[tags['place']];
+                } else if (tags['landuse'] === 'forest') {
+                    document.getElementById('subType').value = 'Q4421';
                 } else if (tags['natural'] === 'hill') {
                     document.getElementById('subType').value = 'Q54050';
                 }
