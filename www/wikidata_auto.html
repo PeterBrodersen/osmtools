@@ -550,11 +550,15 @@
                 if (nameTag) {
                     const name = nameTag.getAttribute('v');
                     if (resultDiv) {
-                        // Add a load-from-OSM emoji button
-                        resultDiv.innerHTML = `OSM name: ${escapeHtml(name)} <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
+                        // Link the name to the OpenStreetMap element page and keep the load-from-OSM emoji button
+                        const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
+                        resultDiv.innerHTML = `OSM name: <a href="${osmUrl}" target="_blank">${escapeHtml(name)}</a> <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
                     }
                 } else {
-                    if (resultDiv) resultDiv.textContent = 'No name tag';
+                    if (resultDiv) {
+                        const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
+                        resultDiv.innerHTML = `<a href="${osmUrl}" target="_blank">OSM ${type} ${escapeHtml(id)} (no name tag)</a>`;
+                    }
                 }
             } catch (err) {
                 // swallow network errors silently
