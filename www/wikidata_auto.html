@@ -160,7 +160,10 @@
 
         // Parse a coordinates string into an object {lat, lng} or return false if invalid.
         function parseCoordinates(str) {
-            if (!str || typeof str !== 'string') return false;
+            if (!str || typeof str !== 'string') {
+                try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
+                return false;
+            }
             str = str.trim();
             // Count commas
             const commaCount = (str.match(/,/g) || []).length;
@@ -171,8 +174,12 @@
                     const lat = parts[0].trim() + '.' + parts[1].trim();
                     const lng = parts[2].trim() + '.' + parts[3].trim();
                     if (!isFinite(lat) || !isFinite(lng)) return false;
+                    // Trigger municipality lookup (fire-and-forget) - pass x=longitude, y=latitude
+                    try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
                     return { lat: lat, lng: lng };
                 }
+                // clear municipality display when invalid
+                try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
                 return false;
             }
             // Case B: standard "lat,lng" (one comma)
@@ -182,11 +189,14 @@
                     const lat = parts[0].trim();
                     const lng = parts[1].trim();
                     if (!lat || !lng || !isFinite(lat) || !isFinite(lng)) return false;
+                    try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
                     return { lat: lat, lng: lng };
                 }
+                try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
                 return false;
             }
             // Anything else is invalid
+            try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
             return false;
         }
 
@@ -219,8 +229,9 @@
         let firstNameItems = [];
         let surnameItems = [];
 
-        let lookupTimers = { firstName: null, surname: null };
-        let lookupTokens = { firstName: '', surname: '' };
+    let lookupTimers = { firstName: null, surname: null };
+    let lookupTokens = { firstName: '', surname: '' };
+    let labelLookupToken = '';
 
         function lookupNameParts(type) {
             let input = document.getElementById(type).value.trim();
@@ -230,6 +241,48 @@
             lookupTimers[type] = setTimeout(() => {
                 doLookupNameParts(type, input, token);
             }, 300);
+        }
+
+        // Lookup exact label on Wikidata and show result/link
+        async function lookupLabelExact() {
+            try {
+                const label = document.getElementById('label').value.trim();
+                const out = document.getElementById('labelLookup');
+                if (!label) {
+                    if (out) out.innerHTML = '';
+                    return;
+                }
+                const token = label.toLowerCase();
+                labelLookupToken = token;
+
+                // SPARQL: match exact rdfs:label in Danish/English/multilingual
+                const sparql = `SELECT ?item ?itemLabel ?desc WHERE {\n  VALUES ?lbl { "${label}"@da "${label}"@en "${label}"@mul }\n  ?item rdfs:label ?lbl.\n  OPTIONAL { ?item schema:description ?desc. FILTER(lang(?desc) = "da" || lang(?desc) = "en") }\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "da,en". }\n} LIMIT 50`;
+                const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
+                const resp = await fetch(url);
+                // If user changed input while fetching, abort showing results
+                if (labelLookupToken !== token) return;
+                if (!resp.ok) {
+                    if (out) out.innerHTML = `<a href="https://www.wikidata.org/w/index.php?search=${encodeURIComponent(label)}" target="_blank">Search Wikidata for ${escapeHtml(label)}</a>`;
+                    return;
+                }
+                const data = await resp.json();
+                if (labelLookupToken !== token) return;
+                const bindings = data.results.bindings;
+                if (!bindings || bindings.length === 0) {
+                    if (out) out.innerHTML = `<a href="https://www.wikidata.org/w/index.php?search=${encodeURIComponent(label)}" target="_blank">No exact match found — search Wikidata for ${escapeHtml(label)}</a>`;
+                } else if (bindings.length === 1) {
+                    const b = bindings[0];
+                    const itemUrl = b.item.value;
+                    const itemId = itemUrl.split('/').pop();
+                    const itemLabel = b.itemLabel ? b.itemLabel.value : label;
+                    const desc = b.desc ? b.desc.value : '';
+                    if (out) out.innerHTML = `<a href="https://www.wikidata.org/wiki/${itemId}" target="_blank">${escapeHtml(itemLabel)}</a>${desc ? ' — ' + escapeHtml(desc) : ''}`;
+                } else {
+                    if (out) out.innerHTML = `<a href="https://www.wikidata.org/w/index.php?search=${encodeURIComponent(label)}" target="_blank">${bindings.length} exact matches found on Wikidata — search for ${escapeHtml(label)}</a>`;
+                }
+            } catch (err) {
+                try { document.getElementById('labelLookup').innerHTML = ''; } catch (e) { }
+            }
         }
 
         async function doLookupNameParts(type, input, token) {
@@ -570,6 +623,76 @@
         function escapeHtml(str) {
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
+        // Lookup Danish municipality by coordinates using Dataforsyningen reverse endpoint
+        async function lookupMunicipality(x, y) {
+            try {
+            if (!isFinite(x) || !isFinite(y)) {
+                document.getElementById('municipalityName').textContent = '';
+                return;
+            }
+            const url = `https://api.dataforsyningen.dk/kommuner/reverse?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`;
+            const resp = await fetch(url);
+            const outDiv = document.getElementById('municipalityName');
+            if (!resp.ok) {
+                if (outDiv) outDiv.textContent = 'Municipality lookup failed';
+                return;
+            }
+            const data = await resp.json();
+            if (data && data.navn) {
+                const name = data.navn.trim();
+                if (outDiv) outDiv.textContent = `Municipality: ${name}`;
+
+                // Try to select matching option in the municipality select
+                try {
+                const select = document.getElementById('municipality');
+                if (select) {
+                    // Build list of candidate names to match against option text
+                    const candidates = [name];
+
+                    // Special-case mapping: København -> Copenhagen
+                    if (name === 'København') candidates.push('Copenhagen');
+
+                    // Common variant: Århus -> Aarhus
+                    if (name === 'Århus') candidates.push('Aarhus');
+
+                    // ASCII-folded variant (remove diacritics)
+                    const folded = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    if (!candidates.includes(folded)) candidates.push(folded);
+
+                    // Simple transliteration for Danish letters to ascii (Å/å/Æ/æ/Ø/ø -> Aa/aa/Ae/ae/O/o)
+                    const translit = name.replace(/Å/g, 'Aa').replace(/å/g, 'aa')
+                             .replace(/Æ/g, 'Ae').replace(/æ/g, 'ae')
+                             .replace(/Ø/g, 'O').replace(/ø/g, 'o');
+                    if (!candidates.includes(translit)) candidates.push(translit);
+
+                    // Try to find exact (case-insensitive) match among option texts
+                    let matched = false;
+                    for (let i = 0; i < select.options.length; i++) {
+                    const opt = select.options[i];
+                    const optText = opt.text.trim();
+                    for (const cand of candidates) {
+                        if (optText.toLowerCase() === cand.toLowerCase()) {
+                        select.value = opt.value;
+                        matched = true;
+                        break;
+                        }
+                    }
+                    if (matched) break;
+                    }
+
+                    if (matched) {
+                    // Update the rest of the form based on new municipality selection
+                    try { updateQuickStatements(); } catch (e) { }
+                    }
+                }
+                } catch (e) { /* ignore selection errors */ }
+            } else {
+                if (outDiv) outDiv.textContent = 'Municipality not found';
+            }
+            } catch (err) {
+            try { document.getElementById('municipalityName').textContent = 'Municipality lookup error'; } catch (e) { }
+            }
+        }
 
         // Load full OSM element data and populate form fields
         async function loadFromOSM(type) {
@@ -612,6 +735,7 @@
                 // Determine subtype from tags (place/natural)
                 const placeToQ = {
                     'hamlet': 'Q5084',
+                    'isolated_dwelling': 'Q5084',
                     'village': 'Q532',
                     'town': 'Q3957',
                     'city': 'Q515',
@@ -776,10 +900,11 @@
         // Wait for DOMContentLoaded before adding event listener
         document.addEventListener('DOMContentLoaded', function () {
             var labelInput = document.getElementById('label');
-            if (labelInput) {
-                labelInput.addEventListener('blur', updateNameSplitSuggestion);
-            }
-            updateNameSplitSuggestion();
+                if (labelInput) {
+                    labelInput.addEventListener('blur', updateNameSplitSuggestion);
+                    labelInput.addEventListener('blur', lookupLabelExact);
+                }
+                updateNameSplitSuggestion();
         });
     </script>
 </head>
@@ -787,8 +912,9 @@
 <body>
     <h1>Wikidata Auto</h1>
     <form>
-        <label for="label">Danish Label:</label>
-        <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br><br>
+    <label for="label">Danish Label:</label>
+    <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br>
+    <div id="labelLookup" style="margin-top:6px; color:#333; font-size:90%"></div><br>
 
         <label for="description">Danish Description:</label>
         <input type="text" id="description" name="description" oninput="updateQuickStatements()" size="50"><br><br>
@@ -860,7 +986,8 @@
             <label for="coordinates">Coordinates (P625):</label>
             <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()">
             <!-- <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br> -->
-            <div id="osmCoordinateLink"></div><br>
+            <div id="osmCoordinateLink"></div>
+            <div id="municipalityName" style="margin-top:6px; color:#333; font-size:90%"></div><br>
 
             <div id="elevationField" style="display:none; margin-bottom:8px;">
                 <label for="elevation">Elevation (meters, P2044):</label>
