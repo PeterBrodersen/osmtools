@@ -229,9 +229,9 @@
         let firstNameItems = [];
         let surnameItems = [];
 
-    let lookupTimers = { firstName: null, surname: null };
-    let lookupTokens = { firstName: '', surname: '' };
-    let labelLookupToken = '';
+        let lookupTimers = { firstName: null, surname: null };
+        let lookupTokens = { firstName: '', surname: '' };
+        let labelLookupToken = '';
 
         function lookupNameParts(type) {
             let input = document.getElementById(type).value.trim();
@@ -626,71 +626,71 @@
         // Lookup Danish municipality by coordinates using Dataforsyningen reverse endpoint
         async function lookupMunicipality(x, y) {
             try {
-            if (!isFinite(x) || !isFinite(y)) {
-                document.getElementById('municipalityName').textContent = '';
-                return;
-            }
-            const url = `https://api.dataforsyningen.dk/kommuner/reverse?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`;
-            const resp = await fetch(url);
-            const outDiv = document.getElementById('municipalityName');
-            if (!resp.ok) {
-                if (outDiv) outDiv.textContent = 'Municipality lookup failed';
-                return;
-            }
-            const data = await resp.json();
-            if (data && data.navn) {
-                const name = data.navn.trim();
-                if (outDiv) outDiv.textContent = `Municipality: ${name}`;
-
-                // Try to select matching option in the municipality select
-                try {
-                const select = document.getElementById('municipality');
-                if (select) {
-                    // Build list of candidate names to match against option text
-                    const candidates = [name];
-
-                    // Special-case mapping: København -> Copenhagen
-                    if (name === 'København') candidates.push('Copenhagen');
-
-                    // Common variant: Århus -> Aarhus
-                    if (name === 'Århus') candidates.push('Aarhus');
-
-                    // ASCII-folded variant (remove diacritics)
-                    const folded = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                    if (!candidates.includes(folded)) candidates.push(folded);
-
-                    // Simple transliteration for Danish letters to ascii (Å/å/Æ/æ/Ø/ø -> Aa/aa/Ae/ae/O/o)
-                    const translit = name.replace(/Å/g, 'Aa').replace(/å/g, 'aa')
-                             .replace(/Æ/g, 'Ae').replace(/æ/g, 'ae')
-                             .replace(/Ø/g, 'O').replace(/ø/g, 'o');
-                    if (!candidates.includes(translit)) candidates.push(translit);
-
-                    // Try to find exact (case-insensitive) match among option texts
-                    let matched = false;
-                    for (let i = 0; i < select.options.length; i++) {
-                    const opt = select.options[i];
-                    const optText = opt.text.trim();
-                    for (const cand of candidates) {
-                        if (optText.toLowerCase() === cand.toLowerCase()) {
-                        select.value = opt.value;
-                        matched = true;
-                        break;
-                        }
-                    }
-                    if (matched) break;
-                    }
-
-                    if (matched) {
-                    // Update the rest of the form based on new municipality selection
-                    try { updateQuickStatements(); } catch (e) { }
-                    }
+                if (!isFinite(x) || !isFinite(y)) {
+                    document.getElementById('municipalityName').textContent = '';
+                    return;
                 }
-                } catch (e) { /* ignore selection errors */ }
-            } else {
-                if (outDiv) outDiv.textContent = 'Municipality not found';
-            }
+                const url = `https://api.dataforsyningen.dk/kommuner/reverse?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`;
+                const resp = await fetch(url);
+                const outDiv = document.getElementById('municipalityName');
+                if (!resp.ok) {
+                    if (outDiv) outDiv.textContent = 'Municipality lookup failed';
+                    return;
+                }
+                const data = await resp.json();
+                if (data && data.navn) {
+                    const name = data.navn.trim();
+                    if (outDiv) outDiv.textContent = `Municipality: ${name}`;
+
+                    // Try to select matching option in the municipality select
+                    try {
+                        const select = document.getElementById('municipality');
+                        if (select) {
+                            // Build list of candidate names to match against option text
+                            const candidates = [name];
+
+                            // Special-case mapping: København -> Copenhagen
+                            if (name === 'København') candidates.push('Copenhagen');
+
+                            // Common variant: Århus -> Aarhus
+                            if (name === 'Århus') candidates.push('Aarhus');
+
+                            // ASCII-folded variant (remove diacritics)
+                            const folded = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            if (!candidates.includes(folded)) candidates.push(folded);
+
+                            // Simple transliteration for Danish letters to ascii (Å/å/Æ/æ/Ø/ø -> Aa/aa/Ae/ae/O/o)
+                            const translit = name.replace(/Å/g, 'Aa').replace(/å/g, 'aa')
+                                .replace(/Æ/g, 'Ae').replace(/æ/g, 'ae')
+                                .replace(/Ø/g, 'O').replace(/ø/g, 'o');
+                            if (!candidates.includes(translit)) candidates.push(translit);
+
+                            // Try to find exact (case-insensitive) match among option texts
+                            let matched = false;
+                            for (let i = 0; i < select.options.length; i++) {
+                                const opt = select.options[i];
+                                const optText = opt.text.trim();
+                                for (const cand of candidates) {
+                                    if (optText.toLowerCase() === cand.toLowerCase()) {
+                                        select.value = opt.value;
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                                if (matched) break;
+                            }
+
+                            if (matched) {
+                                // Update the rest of the form based on new municipality selection
+                                try { updateQuickStatements(); } catch (e) { }
+                            }
+                        }
+                    } catch (e) { /* ignore selection errors */ }
+                } else {
+                    if (outDiv) outDiv.textContent = 'Municipality not found';
+                }
             } catch (err) {
-            try { document.getElementById('municipalityName').textContent = 'Municipality lookup error'; } catch (e) { }
+                try { document.getElementById('municipalityName').textContent = 'Municipality lookup error'; } catch (e) { }
             }
         }
 
@@ -749,6 +749,8 @@
                     document.getElementById('subType').value = 'Q4421';
                 } else if (tags['natural'] === 'hill') {
                     document.getElementById('subType').value = 'Q54050';
+                } else if ("bridge" in tags && tags['bridge'] != 'no') {
+                    document.getElementById('subType').value = 'Q12280';
                 }
                 // Ensure subtype UI updates
                 updateSubtypeUI();
@@ -900,11 +902,11 @@
         // Wait for DOMContentLoaded before adding event listener
         document.addEventListener('DOMContentLoaded', function () {
             var labelInput = document.getElementById('label');
-                if (labelInput) {
-                    labelInput.addEventListener('blur', updateNameSplitSuggestion);
-                    labelInput.addEventListener('blur', lookupLabelExact);
-                }
-                updateNameSplitSuggestion();
+            if (labelInput) {
+                labelInput.addEventListener('blur', updateNameSplitSuggestion);
+                labelInput.addEventListener('blur', lookupLabelExact);
+            }
+            updateNameSplitSuggestion();
         });
     </script>
 </head>
@@ -912,9 +914,9 @@
 <body>
     <h1>Wikidata Auto</h1>
     <form>
-    <label for="label">Danish Label:</label>
-    <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br>
-    <div id="labelLookup" style="margin-top:6px; color:#333; font-size:90%"></div><br>
+        <label for="label">Danish Label:</label>
+        <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br>
+        <div id="labelLookup" style="margin-top:6px; color:#333; font-size:90%"></div><br>
 
         <label for="description">Danish Description:</label>
         <input type="text" id="description" name="description" oninput="updateQuickStatements()" size="50"><br><br>
@@ -996,7 +998,8 @@
             </div><br>
 
             <label for="address">Address (P6375):</label>
-            <input type="text" id="address" name="address" oninput="updateQuickStatements(); scheduleFetchAddress()" size="50">
+            <input type="text" id="address" name="address" oninput="updateQuickStatements(); scheduleFetchAddress()"
+                size="50">
             <div id="addressNodeLink" style="margin-top:4px; color:#333; font-size:90%"></div><br><br>
 
             <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
