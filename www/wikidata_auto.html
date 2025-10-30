@@ -512,7 +512,7 @@
                 if (coordObj) {
                     var lat = coordObj.lat;
                     var lng = coordObj.lng;
-                    var url = 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(lat + ',' + lng) + '#map=16/' + lat + '/' + lng;
+                    var url = `https://www.openstreetmap.org/query?lat=${lat}&lon=${lng}`;
                     osmLinkDiv.innerHTML = `<a href="${url}" target="_blank">View on OpenStreetMap</a>`;
                 } else {
                     osmLinkDiv.innerHTML = '';
