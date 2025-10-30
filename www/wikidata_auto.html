@@ -573,6 +573,27 @@
             updateQuickStatements();
         }
 
+        // Set the selected Type (keeps hidden #type in sync for existing code)
+        function setType(value) {
+            try {
+                // Update hidden input used by existing code
+                const hidden = document.getElementById('type');
+                if (hidden) hidden.value = value;
+
+                // Check the underlying radio input
+                const radio = document.getElementById('type_' + value);
+                if (radio) radio.checked = true;
+
+                // Update visual selected state
+                document.querySelectorAll('.type-buttons .btn').forEach(b => b.classList.remove('selected'));
+                const lab = document.querySelector('.type-buttons label[for="type_' + value + '"]');
+                if (lab) lab.classList.add('selected');
+
+                // Trigger the same onchange behavior
+                updateSubTypeOptions();
+            } catch (e) { }
+        }
+
         // Toggle UI elements that depend on the selected subtype
         function updateSubtypeUI() {
             try {
@@ -932,6 +953,36 @@
             updateNameSplitSuggestion();
         });
     </script>
+    <style>
+        /* Styled radio buttons that look like regular buttons for the "Type" selector */
+        .type-buttons {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .type-buttons .btn {
+            display: inline-block;
+            border: 1px solid #888;
+            background: #f2f2f2;
+            color: #000;
+            padding: 6px 10px;
+            margin-right: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+        }
+
+        .type-buttons .btn.selected {
+            background: #0078d7;
+            color: #fff;
+            border-color: #005a9e;
+        }
+
+        .type-buttons .btn:focus {
+            outline: 2px solid #cce5ff;
+        }
+    </style>
 </head>
 
 <body>
@@ -948,11 +999,25 @@
         <input type="text" id="alias" name="alias" oninput="updateQuickStatements()" size="50"><br><br>
 
         <label for="type">Type:</label>
-        <select id="type" name="type" onchange="updateSubTypeOptions()">
-            <option value="Human">Human</option>
-            <option value="Location">Location</option>
-            <option value="Name">Name</option>
-        </select><br><br>
+        <div class="type-buttons" role="radiogroup" aria-label="Type">
+            <input type="radio" id="type_Human" name="typeRadio" value="Human" checked style="display:none">
+            <label class="btn selected" for="type_Human" onclick="setType('Human')"
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Human'); event.preventDefault(); }"
+                tabindex="0">Human</label>
+
+            <input type="radio" id="type_Location" name="typeRadio" value="Location" style="display:none">
+            <label class="btn" for="type_Location" onclick="setType('Location')"
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Location'); event.preventDefault(); }"
+                tabindex="0">Location</label>
+
+            <input type="radio" id="type_Name" name="typeRadio" value="Name" style="display:none">
+            <label class="btn" for="type_Name" onclick="setType('Name')"
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Name'); event.preventDefault(); }"
+                tabindex="0">Name</label>
+        </div>
+        <!-- Hidden input kept for backwards compatibility with existing JS that reads #type.value -->
+        <input type="hidden" id="type" name="type" value="Human">
+        <br><br>
 
         <label for="subType">Subtype:</label>
         <select id="subType" name="subType" onchange="updateSubtypeUI(); updateQuickStatements()">
