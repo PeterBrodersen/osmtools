@@ -171,7 +171,7 @@ def update_osm_names_from_description(input_file, descriptions, output_file):
     print(f"Wrote updated data to {output_file}")
 
 
-def run_add_tags(conn, input_file, output_file):
+def run_add_male_tags(conn, input_file, output_file):
     node_ids, way_ids = get_all_osm_ids_from_db(conn)
     update_osm_tags(input_file, node_ids, way_ids, 'etymology_has_male', 'yes', output_file)
 
@@ -183,7 +183,7 @@ def run_update_names(conn, input_file, output_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update OSM tags or names based on Wikidata.")
-    parser.add_argument("feature", choices=["add_tags", "update_names"], help="Feature to run: add_tags or update_names")
+    parser.add_argument("feature", choices=["add_male_tags", "update_names"], help="Feature to run: add_male_tags or update_names")
     parser.add_argument("input_file", help="Input OSM or PBF file")
     parser.add_argument("output_file", help="Output OSM or PBF file")
     args = parser.parse_args()
@@ -205,8 +205,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     conn = psycopg2.connect(**db_params)
-    if args.feature == "add_tags":
-        run_add_tags(conn, input_file, output_file)
+    if args.feature == "add_male_tags":
+        run_add_male_tags(conn, input_file, output_file)
     elif args.feature == "update_names":
         run_update_names(conn, input_file, output_file)
     conn.close()
