@@ -48,7 +48,8 @@ def get_all_osm_ids_with_gender_from_db(conn):
                 SELECT UNNEST(l.object_ids) AS unnested_id,
                        COALESCE(g.gender, '') AS gender
                 FROM osmetymology.locations_agg l
-                INNER JOIN osmetymology.wikidata w ON l.wikidatas @> ARRAY[w.itemid]
+                INNER JOIN osmetymology.wikidatamap map ON l.id = map.location_id
+                INNER JOIN osmetymology.wikidata w ON map.wikidata_id = w.itemid
                 LEFT JOIN osmetymology.gendermap g ON (w.claims->'P21'->0->'mainsnak'->'datavalue'->'value'->>'id') = g.itemid
                 WHERE l.geomtype IN({geomtype})
                   AND g.gender IS NOT NULL
