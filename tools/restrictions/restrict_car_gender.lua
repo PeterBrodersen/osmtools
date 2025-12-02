@@ -331,18 +331,18 @@ function setup()
 end
 
 function mark_male_class(profile, way, result, data)
-  mark_attribute_class(profile, way, result, data, 'male')
+  mark_attribute_class(profile, way, result, data, 'male', 'etymology_has_male')
 end
 
 function mark_female_class(profile, way, result, data)
-  mark_attribute_class(profile, way, result, data, 'female')
+  mark_attribute_class(profile, way, result, data, 'female', 'etymology_has_female')
 end
 
-function mark_attribute_class(profile, way, result, data, attribute)
+function mark_attribute_class(profile, way, result, data, classname, attribute)
   local tag = way:get_value_by_key(attribute)
   if tag == "yes" then
-    result.forward_classes[attribute] = true
-    result.backward_classes[attribute] = true
+    result.forward_classes[classname] = true
+    result.backward_classes[classname] = true
   end
 end
 
