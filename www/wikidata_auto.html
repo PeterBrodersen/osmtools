@@ -793,6 +793,8 @@
                     document.getElementById('subType').value = placeToQ[tags['place']];
                 } else if (tags['landuse'] === 'forest') {
                     document.getElementById('subType').value = 'Q4421';
+                } else if (tags['landuse'] === 'farmyard') {
+                    document.getElementById('subType').value = 'Q131596';
                 } else if (tags['natural'] === 'hill') {
                     document.getElementById('subType').value = 'Q54050';
                 } else if ("bridge" in tags && tags['bridge'] != 'no') {
