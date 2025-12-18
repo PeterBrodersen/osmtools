@@ -572,6 +572,7 @@
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('cityFields').style.display = 'none';
             }
+            updateSubtypeUI();
             updateQuickStatements();
         }
 
@@ -601,8 +602,22 @@
             try {
                 var subTypeEl = document.getElementById('subType');
                 var elevationField = document.getElementById('elevationField');
+                var subWarning = document.getElementById('subTypeWarning');
+                var addressEl = document.getElementById('address');
                 if (subTypeEl && elevationField) {
                     elevationField.style.display = (subTypeEl.value === 'Q54050') ? 'block' : 'none';
+                }
+                if (subWarning) {
+                    var typeEl = document.getElementById('type');
+                    var isCity = subTypeEl && subTypeEl.value === 'Q515' && typeEl && typeEl.value === 'Location';
+                    var hasAddress = addressEl && addressEl.value && addressEl.value.trim() !== '';
+                    if (isCity && hasAddress) {
+                        subWarning.textContent = '⚠ Address not allowed for City';
+                        subWarning.title = 'City subtype should not have an address';
+                    } else {
+                        subWarning.textContent = '';
+                        subWarning.title = '';
+                    }
                 }
             } catch (e) { }
         }
@@ -1026,7 +1041,9 @@
         <label for="subType">Subtype:</label>
         <select id="subType" name="subType" onchange="updateSubtypeUI(); updateQuickStatements()">
             <!-- Options will be populated by JavaScript -->
-        </select><br><br>
+        </select>
+        <span id="subTypeWarning" style="color:#a00; margin-left:8px; font-weight:600;" title="City should not have an address"></span>
+        <br><br>
 
         <div id="humanFields" style="display: none;">
             <label for="citizenship">Citizenship (Kingdom of Denmark):</label>
@@ -1090,7 +1107,7 @@
             </div><br>
 
             <label for="address">Address (P6375):</label>
-            <input type="text" id="address" name="address" oninput="updateQuickStatements(); scheduleFetchAddress()"
+            <input type="text" id="address" name="address" oninput="updateQuickStatements(); scheduleFetchAddress(); updateSubtypeUI()"
                 size="50">
             <div id="addressNodeLink" style="margin-top:4px; color:#333; font-size:90%"></div><br><br>
 
