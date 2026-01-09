@@ -258,6 +258,9 @@
         let lookupTimers = { firstName: null, surname: null };
         let lookupTokens = { firstName: '', surname: '' };
         let labelLookupToken = '';
+        // Guards to prevent recursive or repeated municipality lookups
+        let skipMunicipalityLookup = false;
+        let lastMunicipalityCoords = null; // {x,y}
 
         function lookupNameParts(type) {
             let input = document.getElementById(type).value.trim();
@@ -687,10 +690,17 @@
         // Lookup Danish municipality by coordinates using Dataforsyningen reverse endpoint
         async function lookupMunicipality(x, y) {
             try {
+                // Prevent recursive re-entry from updateQuickStatements
+                if (skipMunicipalityLookup) return;
                 if (!isFinite(x) || !isFinite(y)) {
                     document.getElementById('municipalityName').textContent = '';
                     return;
                 }
+                // Avoid refetching for the same coordinates repeatedly
+                if (lastMunicipalityCoords && lastMunicipalityCoords.x === x && lastMunicipalityCoords.y === y) return;
+
+                lastMunicipalityCoords = { x, y };
+
                 const url = `https://api.dataforsyningen.dk/kommuner/reverse?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`;
                 const resp = await fetch(url);
                 const outDiv = document.getElementById('municipalityName');
@@ -707,43 +717,42 @@
                     try {
                         const select = document.getElementById('municipality');
                         if (select) {
-                            // Build list of candidate names to match against option text
                             const candidates = [name];
-
-                            // Special-case mapping: København -> Copenhagen
                             if (name === 'København') candidates.push('Copenhagen');
-
-                            // Common variant: Århus -> Aarhus
                             if (name === 'Århus') candidates.push('Aarhus');
-
-                            // ASCII-folded variant (remove diacritics)
                             const folded = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                             if (!candidates.includes(folded)) candidates.push(folded);
-
-                            // Simple transliteration for Danish letters to ascii (Å/å/Æ/æ/Ø/ø -> Aa/aa/Ae/ae/O/o)
                             const translit = name.replace(/Å/g, 'Aa').replace(/å/g, 'aa')
                                 .replace(/Æ/g, 'Ae').replace(/æ/g, 'ae')
                                 .replace(/Ø/g, 'O').replace(/ø/g, 'o');
                             if (!candidates.includes(translit)) candidates.push(translit);
 
-                            // Try to find exact (case-insensitive) match among option texts
-                            let matched = false;
+                            // Find matching option
+                            let matchedValue = null;
                             for (let i = 0; i < select.options.length; i++) {
                                 const opt = select.options[i];
                                 const optText = opt.text.trim();
                                 for (const cand of candidates) {
                                     if (optText.toLowerCase() === cand.toLowerCase()) {
-                                        select.value = opt.value;
-                                        matched = true;
+                                        matchedValue = opt.value;
                                         break;
                                     }
                                 }
-                                if (matched) break;
+                                if (matchedValue) break;
                             }
 
-                            if (matched) {
-                                // Update the rest of the form based on new municipality selection
-                                try { updateQuickStatements(); } catch (e) { }
+                            if (matchedValue) {
+                                // Only change value and trigger update if it actually differs
+                                if (select.value !== matchedValue) {
+                                    // Prevent lookup re-entry while we update the form
+                                    skipMunicipalityLookup = true;
+                                    select.value = matchedValue;
+                                    // Schedule a qstat update asynchronously and then re-enable lookup
+                                    setTimeout(() => {
+                                        try { updateQuickStatements(); } catch (e) { }
+                                        skipMunicipalityLookup = false;
+                                    }, 0);
+                                }
                             }
                         }
                     } catch (e) { /* ignore selection errors */ }
