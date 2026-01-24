@@ -285,7 +285,7 @@
                 labelLookupToken = token;
 
                 // SPARQL: match exact rdfs:label in Danish/English/multilingual
-                const sparql = `SELECT ?item ?itemLabel ?desc WHERE {\n  VALUES ?lbl { "${label}"@da "${label}"@en "${label}"@mul }\n  ?item rdfs:label ?lbl.\n  OPTIONAL { ?item schema:description ?desc. FILTER(lang(?desc) = "da" || lang(?desc) = "en") }\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "da,en". }\n} LIMIT 50`;
+                const sparql = `SELECT DISTINCT ?item ?itemLabel ?desc WHERE {\n  VALUES ?lbl { "${label}"@da "${label}"@en "${label}"@mul }\n  ?item rdfs:label ?lbl.\n  OPTIONAL { ?item schema:description ?desc. FILTER(lang(?desc) = "da" || lang(?desc) = "en") }\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "da,en". }\n} LIMIT 50`;
                 const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
                 const resp = await fetch(url);
                 // If user changed input while fetching, abort showing results
