@@ -159,6 +159,7 @@
         };
 
         function formatDate(date) {
+            date = date.trim();
             if (!date) return '';
             let precision = 9; // Default precision is year
 
@@ -559,13 +560,13 @@
                 subType.innerHTML += '<option value="Man">Man</option>';
                 subType.innerHTML += '<option value="Woman">Woman</option>';
                 document.getElementById('humanFields').style.display = 'block';
-                document.getElementById('cityFields').style.display = 'none';
+                document.getElementById('locationFields').style.display = 'none';
             } else if (type === 'Location') {
                 for (let key in locations) {
                     subType.innerHTML += `<option value="${key}">${locations[key]}</option>`;
                 }
                 document.getElementById('humanFields').style.display = 'none';
-                document.getElementById('cityFields').style.display = 'block';
+                document.getElementById('locationFields').style.display = 'block';
                 document.getElementById('elevationField').style.display = (subType.value === 'Q54050') ? 'block' : 'none';
             } else if (type === 'Name') {
                 subType.innerHTML += '<option value="Surname">Surname</option>';
@@ -573,10 +574,57 @@
                 subType.innerHTML += '<option value="First name (male)">First name (male)</option>';
                 subType.innerHTML += '<option value="First name (female)">First name (female)</option>';
                 document.getElementById('humanFields').style.display = 'none';
-                document.getElementById('cityFields').style.display = 'none';
+                document.getElementById('locationFields').style.display = 'none';
             }
             updateSubtypeUI();
+            updateSubTypeSuggestion();
             updateQuickStatements();
+        }
+
+        // Suggest a subtype based on words found in the description.
+        function updateSubTypeSuggestion() {
+            try {
+                const desc = (document.getElementById('description').value || '').toLowerCase();
+                const suggestionEl = document.getElementById('subTypeSuggestion');
+                if (!suggestionEl) return;
+
+                const map = [
+                    { key: 'gård', label: 'Farm', q: 'Q131596' },
+                    { key: 'landsby', label: 'Hamlet', q: 'Q5084' },
+                    { key: 'skov', label: 'Forest', q: 'Q4421' },
+                    { key: 'mose', label: 'Bog', q: 'Q1681353' },
+                    { key: 'sø',   label: 'Lake', q: 'Q23397' },
+                    { key: 'kirke', label: 'Church', q: 'Q16970' },
+                    { key: 'bro',  label: 'Bridge', q: 'Q12280' },
+                    { key: 'strand', label: 'Beach', q: 'Q40080' }
+                ];
+
+                // Only first match counts; order matters (e.g. 'gård' before 'sø')
+                let found = null;
+                for (let i = 0; i < map.length; i++) {
+                    if (desc.indexOf(map[i].key) !== -1) { found = map[i]; break; }
+                }
+
+                if (found) {
+                    suggestionEl.classList.remove('hidden');
+                    suggestionEl.dataset.q = found.q;
+                    suggestionEl.innerHTML = `Suggestion: <a href="#" accesskey="s" onclick="applySubTypeSuggestion('${found.q}'); return false;">${found.label}</a>`;
+                } else {
+                    suggestionEl.classList.add('hidden');
+                    delete suggestionEl.dataset.q;
+                    suggestionEl.innerHTML = '';
+                }
+            } catch (e) { }
+        }
+
+        function applySubTypeSuggestion(q) {
+            try {
+                const subType = document.getElementById('subType');
+                if (!subType) return;
+                subType.value = q;
+                updateSubtypeUI();
+                updateQuickStatements();
+            } catch (e) { }
         }
 
         // Set the selected Type (keeps hidden #type in sync for existing code)
@@ -612,7 +660,8 @@
                 }
                 if (subWarning) {
                     var typeEl = document.getElementById('type');
-                    var isCity = subTypeEl && subTypeEl.value === 'Q515' && typeEl && typeEl.value === 'Location';
+                    var cityTypes = ['Q515','Q2983893','Q188509','Q3957','Q532','Q5084','Q486972','Q12336407'];
+                    var isCity = subTypeEl && cityTypes.indexOf(subTypeEl.value) !== -1 && typeEl && typeEl.value === 'Location';
                     var hasAddress = addressEl && addressEl.value && addressEl.value.trim() !== '';
                     if (isCity && hasAddress) {
                         subWarning.textContent = '⚠ Address not allowed for City';
@@ -800,6 +849,8 @@
                 if (tags['name']) {
                     document.getElementById('label').value = tags['name'];
                     updateNameSplitSuggestion();
+                    // Notify listeners that the label changed programmatically
+                    try { document.getElementById('label').dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { }
                 }
 
                 // Determine subtype from tags (place/natural)
@@ -979,7 +1030,47 @@
             if (labelInput) {
                 labelInput.addEventListener('blur', updateNameSplitSuggestion);
                 labelInput.addEventListener('blur', lookupLabelExact);
+                // Also run exact label lookup when the field's value is changed programmatically
+                labelInput.addEventListener('change', lookupLabelExact);
             }
+            // Update subtype suggestion when description changes
+            try {
+                var descEl = document.getElementById('description');
+                if (descEl) descEl.addEventListener('input', updateSubTypeSuggestion);
+            } catch (e) { }
+            // Intercept accesskey + s and call applySubTypeSuggestion directly
+            try {
+                document.addEventListener('keydown', function (e) {
+                    // Typical accesskey combos: Alt+S (Windows), Meta+Alt+S or Ctrl+Opt on Mac - accept Alt or Meta as modifier
+                    if ((e.key === 's' || e.key === 'S') && (e.altKey || e.metaKey)) {
+                        var suggestionEl = document.getElementById('subTypeSuggestion');
+                        if (suggestionEl && suggestionEl.dataset && suggestionEl.dataset.q) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try { applySubTypeSuggestion(suggestionEl.dataset.q); } catch (err) { }
+                        }
+                    }
+                }, false);
+            } catch (e) { }
+            // Bind Enter to loadFromOSM for OSM ID inputs so Return triggers loading
+            ['osmNode', 'osmWay', 'osmRelation'].forEach(function (id) {
+                try {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            var type = (id === 'osmNode') ? 'node' : (id === 'osmWay') ? 'way' : 'relation';
+                            try { loadFromOSM(type); } catch (err) { }
+                            try {
+                                var desc = document.getElementById('description');
+                                if (desc) desc.focus();
+                            } catch (err) { }
+                        }
+                    });
+                } catch (e) { }
+            });
+
             updateNameSplitSuggestion();
         });
     </script>
@@ -1012,6 +1103,36 @@
         .type-buttons .btn:focus {
             outline: 2px solid #cce5ff;
         }
+        /* Common small informational text used under inputs */
+        .info-text {
+            margin-top: 6px;
+            color: #333;
+            font-size: 90%;
+        }
+        /* Slightly tighter inline info (used for OSM element name links, address helper) */
+        .inline-info {
+            margin-top: 4px;
+            color: #333;
+            font-size: 90%;
+        }
+        /* Notification used when copying quick statements */
+        .copy-notification {
+            display: none;
+            color: green;
+        }
+        /* Hidden form sections default - toggled via JS */
+        #humanFields, #locationFields {
+            display: none;
+        }
+        .subtype-suggestion {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 90%;
+            color: #0078d7;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .hidden { display: none; }
     </style>
 </head>
 
@@ -1020,7 +1141,7 @@
     <form>
         <label for="label">Danish Label:</label>
         <input type="text" id="label" name="label" oninput="updateQuickStatements()" size="50"><br>
-        <div id="labelLookup" style="margin-top:6px; color:#333; font-size:90%"></div><br>
+        <div id="labelLookup" class="info-text"></div><br>
 
         <label for="description">Danish Description:</label>
         <input type="text" id="description" name="description" oninput="updateQuickStatements()" size="50"><br><br>
@@ -1030,33 +1151,73 @@
 
         <label for="type">Type:</label>
         <div class="type-buttons" role="radiogroup" aria-label="Type">
-            <input type="radio" id="type_Human" name="typeRadio" value="Human" checked style="display:none">
-            <label class="btn selected" for="type_Human" onclick="setType('Human')"
-                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Human'); event.preventDefault(); }"
-                tabindex="0">Human</label>
+            <input type="radio" id="type_Location" name="typeRadio" value="Location" checked style="display:none">
+            <label class="btn selected" for="type_Location" onclick="setType('Location')"
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Location'); event.preventDefault(); }">Location</label>
 
-            <input type="radio" id="type_Location" name="typeRadio" value="Location" style="display:none">
-            <label class="btn" for="type_Location" onclick="setType('Location')"
-                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Location'); event.preventDefault(); }"
-                tabindex="0">Location</label>
+            <input type="radio" id="type_Human" name="typeRadio" value="Human" style="display:none">
+            <label class="btn" for="type_Human" onclick="setType('Human')"
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Human'); event.preventDefault(); }">Human</label>
 
             <input type="radio" id="type_Name" name="typeRadio" value="Name" style="display:none">
             <label class="btn" for="type_Name" onclick="setType('Name')"
-                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Name'); event.preventDefault(); }"
-                tabindex="0">Name</label>
+                onkeydown="if(event.key==='Enter'||event.key===' ') { setType('Name'); event.preventDefault(); }">Name</label>
         </div>
         <!-- Hidden input kept for backwards compatibility with existing JS that reads #type.value -->
-        <input type="hidden" id="type" name="type" value="Human">
+        <input type="hidden" id="type" name="type" value="Location">
         <br><br>
 
         <label for="subType">Subtype:</label>
         <select id="subType" name="subType" onchange="updateSubtypeUI(); updateQuickStatements()">
             <!-- Options will be populated by JavaScript -->
         </select>
-        <span id="subTypeWarning" style="color:#a00; margin-left:8px; font-weight:600;" title="City should not have an address"></span>
+        <a id="subTypeSuggestion" class="subtype-suggestion hidden" href="#" aria-hidden="true" accesskey="s"></a>
+        <span id="subTypeWarning" style="color:#a00; margin-left:8px; font-weight:600;"
+            title="City should not have an address"></span>
         <br><br>
 
-        <div id="humanFields" style="display: none;">
+
+        <div id="locationFields">
+            <label for="country">Country (Denmark):</label>
+            <input type="checkbox" id="country" name="country" onchange="updateQuickStatements()" checked><br><br>
+
+            <label for="municipality">Municipality:</label>
+            <select id="municipality" name="municipality" onchange="updateQuickStatements()">
+                <!-- Options will be populated by JavaScript -->
+            </select><br><br>
+
+            <label for="coordinates">Coordinates (P625):</label>
+            <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()">
+            <!-- <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br> -->
+            <div id="osmCoordinateLink"></div>
+            <div id="municipalityName" class="info-text"></div><br>
+
+            <div id="elevationField" style="margin-bottom:8px;">
+                <label for="elevation">Elevation (meters, P2044):</label>
+                <input type="text" id="elevation" name="elevation" oninput="updateQuickStatements()"
+                    placeholder="e.g. 55.3">
+            </div><br>
+
+            <label for="address">Address (P6375):</label>
+            <input type="text" id="address" name="address"
+                oninput="updateQuickStatements(); scheduleFetchAddress(); updateSubtypeUI()" size="50">
+            <div id="addressNodeLink" class="inline-info"></div><br><br>
+
+            <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
+            <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements(); scheduleFetchOSM('node')">
+            <div id="osmNodeName" class="inline-info"></div><br>
+
+            <label for="osmWay">OpenStreetMap Way ID (P10689):</label>
+            <input type="text" id="osmWay" name="osmWay" oninput="updateQuickStatements(); scheduleFetchOSM('way')">
+            <div id="osmWayName" class="inline-info"></div><br>
+
+            <label for="osmRelation">OpenStreetMap Relation ID (P402):</label>
+            <input type="text" id="osmRelation" name="osmRelation"
+                oninput="updateQuickStatements(); scheduleFetchOSM('relation')">
+            <div id="osmRelationName" class="inline-info"></div><br>
+        </div>
+
+        <div id="humanFields">
             <label for="citizenship">Citizenship (Kingdom of Denmark):</label>
             <input type="checkbox" id="citizenship" name="citizenship" onchange="updateQuickStatements()"
                 checked><br><br>
@@ -1096,50 +1257,10 @@
             <div id="surnameResults"></div><br>
         </div>
 
-        <div id="cityFields" style="display: none;">
-            <label for="country">Country (Denmark):</label>
-            <input type="checkbox" id="country" name="country" onchange="updateQuickStatements()" checked><br><br>
-
-            <label for="municipality">Municipality:</label>
-            <select id="municipality" name="municipality" onchange="updateQuickStatements()">
-                <!-- Options will be populated by JavaScript -->
-            </select><br><br>
-
-            <label for="coordinates">Coordinates (P625):</label>
-            <input type="text" id="coordinates" name="coordinates" oninput="updateQuickStatements()">
-            <!-- <div id="osmCoordinateLink" style="margin-top:5px;"></div><br><br> -->
-            <div id="osmCoordinateLink"></div>
-            <div id="municipalityName" style="margin-top:6px; color:#333; font-size:90%"></div><br>
-
-            <div id="elevationField" style="display:none; margin-bottom:8px;">
-                <label for="elevation">Elevation (meters, P2044):</label>
-                <input type="text" id="elevation" name="elevation" oninput="updateQuickStatements()"
-                    placeholder="e.g. 55.3">
-            </div><br>
-
-            <label for="address">Address (P6375):</label>
-            <input type="text" id="address" name="address" oninput="updateQuickStatements(); scheduleFetchAddress(); updateSubtypeUI()"
-                size="50">
-            <div id="addressNodeLink" style="margin-top:4px; color:#333; font-size:90%"></div><br><br>
-
-            <label for="osmNode">OpenStreetMap Node ID (P11693):</label>
-            <input type="text" id="osmNode" name="osmNode" oninput="updateQuickStatements(); scheduleFetchOSM('node')">
-            <div id="osmNodeName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
-
-            <label for="osmWay">OpenStreetMap Way ID (P10689):</label>
-            <input type="text" id="osmWay" name="osmWay" oninput="updateQuickStatements(); scheduleFetchOSM('way')">
-            <div id="osmWayName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
-
-            <label for="osmRelation">OpenStreetMap Relation ID (P402):</label>
-            <input type="text" id="osmRelation" name="osmRelation"
-                oninput="updateQuickStatements(); scheduleFetchOSM('relation')">
-            <div id="osmRelationName" style="margin-top:4px; color:#333; font-size:90%"></div><br>
-        </div>
-
         <label for="quickStatements">QuickStatements:</label><br>
         <textarea id="quickStatements" name="quickStatements" rows="10" cols="50" readonly></textarea><br>
         <a href="#" onclick="copyToClipboard()">Copy to Clipboard</a>
-        <div id="copyNotification" style="display: none; color: green;">Copied to clipboard!</div><br>
+        <div id="copyNotification" class="copy-notification">Copied to clipboard!</div><br>
         <a id="quickStatementsLink" href="#" target="_blank" accesskey="a">Open in QuickStatements</a>
     </form>
 
