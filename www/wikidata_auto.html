@@ -1156,6 +1156,14 @@
             cursor: pointer;
         }
         .hidden { display: none; }
+
+        #address {
+            background-color: white;
+        }
+
+        #address:invalid {
+            background-color: lightpink;
+        }
     </style>
 </head>
 
@@ -1222,7 +1230,7 @@
             </div><br>
 
             <label for="address">Address (P6375):</label>
-            <input type="text" id="address" name="address"
+            <input type="text" id="address" name="address" pattern="^[^\d].*"
                 oninput="updateQuickStatements(); scheduleFetchAddress(); updateSubtypeUI()" size="50">
             <div id="addressNodeLink" class="inline-info"></div><br><br>
 
