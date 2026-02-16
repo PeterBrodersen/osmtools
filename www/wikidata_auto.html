@@ -878,7 +878,7 @@
                     document.getElementById('subType').value = 'Q54050';
                 } else if (tags['water'] === 'lake') {
                     document.getElementById('subType').value = 'Q23397';
-                } else if ("bridge" in tags && tags['bridge'] != 'no') {
+                } else if (("bridge" in tags && tags['bridge'] != 'no') || tags['man_made'] === 'bridge') {
                     document.getElementById('subType').value = 'Q12280';
                 }
                 // Ensure subtype UI updates
