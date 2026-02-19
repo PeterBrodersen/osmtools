@@ -248,7 +248,7 @@
                 return `|S2600|"${geniId}"`;
             } else if (source.match(/^gravsted\s+(.+)$/i)) { // Gravsted ID
                 const gravstedId = source.match(/^gravsted\s+(.+)$/i)[1];
-                return `|P4359|"${gravstedId}"`;
+                return `|S4359|"${gravstedId}"`;
             } else { // URL or other source
                 return `|S854|"${source}"`;
             }
