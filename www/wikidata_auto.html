@@ -249,6 +249,9 @@
             } else if (source.match(/^gravsted\s+(.+)$/i)) { // Gravsted ID
                 const gravstedId = source.match(/^gravsted\s+(.+)$/i)[1];
                 return `|S4359|"${gravstedId}"`;
+            } else if (source.match(/^modstand\s+(.+)$/i)) { // Modstandsdatabase ID
+                const modstandsdatabaseId = source.match(/^modstand\s+(.+)$/i)[1];
+                return `|S10951|"${modstandsdatabaseId}"`;
             } else { // URL or other source
                 return `|S854|"${source}"`;
             }
