@@ -60,6 +60,9 @@ def read_cache_from_file(filename):
             return json.load(f)
     return None
 
+# User-Agent for Wikidata requests (set to identify your bot and include contact info if possible)
+USER_AGENT = 'FindvejEtymologyBot/1.0 (https://navne.findvej.dk/;peter@ter.dk)'
+
 # Step 1: Read from cache or process OSM file
 cache_file_step1 = 'cache_osm_candidates.json'
 cached_elements = read_cache_from_file(cache_file_step1)
@@ -106,8 +109,25 @@ if not cached_results:
         if i % 1000 == 0:
             logging.info(f"Querying Wikidata for {i} items so far.")
         logging.debug(f"Querying Wikidata for batch {i // batch_size + 1}...")
-        response = requests.get(endpoint_url, params={'query': query, 'format': 'json'})
-        if response.status_code == 200:
+        headers = {'User-Agent': USER_AGENT}
+        try:
+            response = requests.get(endpoint_url, params={'query': query, 'format': 'json'}, headers=headers, timeout=30)
+        except requests.RequestException as e:
+            logging.error(f"Request error querying Wikidata for batch {i // batch_size + 1}: {e}")
+            data = {'results': {'bindings': []}}
+            time.sleep(5)
+            continue
+
+        # Respect Wikidata robot policy: stop if access is forbidden (403)
+        if response.status_code == 403:
+            logging.error(
+                f"Error querying Wikidata: HTTP 403 - access forbidden.\n"
+                "Please set a proper User-Agent and respect the robot policy: https://w.wiki/4wJS"
+            )
+            # Stop further queries to avoid hammering the service; save what we have and break out
+            stop_querying = True
+            data = {'results': {'bindings': []}}
+        elif response.status_code == 200:
             if response.content:
                 data = response.json()
             else:
@@ -136,6 +156,10 @@ if not cached_results:
                 }
                 logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]['ids']} and labels {wikidata_results[wikidata_id]['labels']}")
         time.sleep(1)  # To avoid hitting rate limits
+
+        if 'stop_querying' in locals() and stop_querying:
+            logging.info("Stopping further Wikidata queries due to HTTP 403 response.")
+            break
 
     cache_result_to_file(wikidata_results, cache_file_step2)
 
