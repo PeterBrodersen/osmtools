@@ -187,45 +187,40 @@
         }
 
         // Parse a coordinates string into an object {lat, lng} or return false if invalid.
+        // Supports multiple formats including optional cardinal directions (N,S,E,W):
+        // - "55.4155059N, 11.9849231E" (with cardinal directions)
+        // - "55.4155059, 11.9849231" (standard decimal format)
+        // - "55,4155059, 11,9849231" (European format with comma as decimal separator)
+        // - "55.4155059,11.9849231" (no spaces)
         function parseCoordinates(str) {
             if (!str || typeof str !== 'string') {
                 try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
                 return false;
             }
             str = str.trim();
-            // Count commas
-            const commaCount = (str.match(/,/g) || []).length;
-            // Case A: three commas used as decimal separators, e.g. "12,34, 56,78"
-            if (commaCount === 3) {
-                const parts = str.split(',');
-                if (parts.length === 4) {
-                    const lat = parts[0].trim() + '.' + parts[1].trim();
-                    const lng = parts[2].trim() + '.' + parts[3].trim();
-                    if (!isFinite(lat) || !isFinite(lng)) return false;
-                    // Trigger municipality lookup (fire-and-forget) - pass x=longitude, y=latitude
-                    try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
-                    return { lat: lat, lng: lng };
-                }
-                // clear municipality display when invalid
+            
+            // Regex pattern to match coordinates with optional cardinal directions (N,S,E,W)
+            // Pattern: (latitude)[N/S]? separator (longitude)[E/W]?
+            const coordPattern = /^\s*([-+]?[\d.,]+)\s*[NSns]?\s*[,\s]+\s*([-+]?[\d.,]+)\s*[EWew]?\s*$/;
+            
+            const match = str.match(coordPattern);
+            if (!match) {
                 try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
                 return false;
             }
-            // Case B: standard "lat,lng" (one comma)
-            if (commaCount === 1) {
-                const parts = str.split(',');
-                if (parts.length === 2) {
-                    const lat = parts[0].trim();
-                    const lng = parts[1].trim();
-                    if (!lat || !lng || !isFinite(lat) || !isFinite(lng)) return false;
-                    try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
-                    return { lat: lat, lng: lng };
-                }
+            
+            // Extract latitude and longitude, then normalize commas to dots
+            let lat = match[1].replace(/,/g, '.');
+            let lng = match[2].replace(/,/g, '.');
+            
+            if (!isFinite(lat) || !isFinite(lng)) {
                 try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
                 return false;
             }
-            // Anything else is invalid
-            try { document.getElementById('municipalityName').textContent = ''; } catch (e) { }
-            return false;
+            
+            // Trigger municipality lookup (fire-and-forget) - pass x=longitude, y=latitude
+            try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
+            return { lat: lat, lng: lng };
         }
 
         // Format a {lat, lng} object into QuickStatements string "@lat/lng" or return false.
