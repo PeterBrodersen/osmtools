@@ -202,7 +202,7 @@
             
             // Regex pattern to match coordinates with optional cardinal directions (N,S,E,W)
             // Pattern: (latitude)[N/S]? separator (longitude)[E/W]?
-            const coordPattern = /^\s*([-+]?[\d.,]+)\s*[NSns]?\s*[,\s]+\s*([-+]?[\d.,]+)\s*[EWew]?\s*$/;
+            const coordPattern = /^\s*([-+]?[\d.,]+)\s*[NSns]?\s*[,\s]+\s*([-+]?[\d.,]+)\s*[EWewØø]?\s*$/;
             
             const match = str.match(coordPattern);
             if (!match) {
