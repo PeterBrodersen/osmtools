@@ -6,11 +6,14 @@ import json
 import os
 import time
 
-osmFile = 'denmark-latest.osm.pbf'
+osmFile = "denmark-latest.osm.pbf"
 # osmFile = 'andorra-latest.osm.pbf'
 
 # Enable logging for debugging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 # Step 1: Fetch OSM objects with 'wikidata' key but without 'name:etymology:wikidata'
 class OSMHandler(osmium.SimpleHandler):
@@ -25,46 +28,47 @@ class OSMHandler(osmium.SimpleHandler):
             self.reached_max = True
             return
         tags = elem.tags
-        if 'wikidata' in tags and 'name:etymology:wikidata' not in tags:
-            element = {
-                'id': elem.id,
-                'type': elem_type,
-                'wikidata': tags['wikidata']
-            }
-            if 'name' in tags:
-                element['name'] = tags['name']
+        if "wikidata" in tags and "name:etymology:wikidata" not in tags:
+            element = {"id": elem.id, "type": elem_type, "wikidata": tags["wikidata"]}
+            if "name" in tags:
+                element["name"] = tags["name"]
             self.elements.append(element)
             if len(self.elements) % 100 == 0:
                 logging.info(f"Added {len(self.elements)} elements so far.")
-            logging.debug(f"Added {elem_type} with ID {elem.id} and Wikidata ID {tags['wikidata']}")
+            logging.debug(
+                f"Added {elem_type} with ID {elem.id} and Wikidata ID {tags['wikidata']}"
+            )
 
     def node(self, n):
         if not self.reached_max:
-            self.add_element(n, 'node')
+            self.add_element(n, "node")
 
     def way(self, w):
         if not self.reached_max:
-            self.add_element(w, 'way')
+            self.add_element(w, "way")
 
     def relation(self, r):
         if not self.reached_max:
-            self.add_element(r, 'relation')
+            self.add_element(r, "relation")
+
 
 def cache_result_to_file(result, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
+    with open(filename, "w", encoding="utf-8") as f:
         json.dump(result, f)
+
 
 def read_cache_from_file(filename):
     if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
+
 # User-Agent for Wikidata requests (set to identify your bot and include contact info if possible)
-USER_AGENT = 'FindvejEtymologyBot/1.0 (https://navne.findvej.dk/;peter@ter.dk)'
+USER_AGENT = "FindvejEtymologyBot/1.0 (https://navne.findvej.dk/;peter@ter.dk)"
 
 # Step 1: Read from cache or process OSM file
-cache_file_step1 = 'cache_osm_candidates.json'
+cache_file_step1 = "cache_osm_candidates.json"
 cached_elements = read_cache_from_file(cache_file_step1)
 max_elements = None  # Set the max limit for elements
 
@@ -90,7 +94,7 @@ SELECT ?item ?namedAfter ?namedAfterLabel WHERE {{
 """
 
 wikidata_results = {}
-cache_file_step2 = 'cache_wikidata_named_after.json'
+cache_file_step2 = "cache_wikidata_named_after.json"
 cached_results = read_cache_from_file(cache_file_step2)
 
 if cached_results:
@@ -98,23 +102,32 @@ if cached_results:
     wikidata_results = cached_results
 
 # Filter out elements with already queried Wikidata IDs
-elements_to_query = [elem for elem in handler.elements if elem['wikidata'] not in wikidata_results]
+elements_to_query = [
+    elem for elem in handler.elements if elem["wikidata"] not in wikidata_results
+]
 
 if not cached_results:
     batch_size = 100
     for i in range(0, len(elements_to_query), batch_size):
-        batch = elements_to_query[i:i + batch_size]
+        batch = elements_to_query[i : i + batch_size]
         wikidata_ids = " ".join(f"wd:{elem['wikidata']}" for elem in batch)
         query = query_template.format(wikidata_ids=wikidata_ids)
         if i % 1000 == 0:
             logging.info(f"Querying Wikidata for {i} items so far.")
         logging.debug(f"Querying Wikidata for batch {i // batch_size + 1}...")
-        headers = {'User-Agent': USER_AGENT}
+        headers = {"User-Agent": USER_AGENT}
         try:
-            response = requests.get(endpoint_url, params={'query': query, 'format': 'json'}, headers=headers, timeout=30)
+            response = requests.get(
+                endpoint_url,
+                params={"query": query, "format": "json"},
+                headers=headers,
+                timeout=30,
+            )
         except requests.RequestException as e:
-            logging.error(f"Request error querying Wikidata for batch {i // batch_size + 1}: {e}")
-            data = {'results': {'bindings': []}}
+            logging.error(
+                f"Request error querying Wikidata for batch {i // batch_size + 1}: {e}"
+            )
+            data = {"results": {"bindings": []}}
             time.sleep(5)
             continue
 
@@ -126,68 +139,97 @@ if not cached_results:
             )
             # Stop further queries to avoid hammering the service; save what we have and break out
             stop_querying = True
-            data = {'results': {'bindings': []}}
+            data = {"results": {"bindings": []}}
         elif response.status_code == 200:
             if response.content:
                 data = response.json()
             else:
                 logging.error(f"Empty response for batch {i // batch_size + 1}")
-                data = {'results': {'bindings': []}}
+                data = {"results": {"bindings": []}}
         else:
-            logging.error(f"Error querying Wikidata: HTTP {response.status_code} - {response.text}")
-            data = {'results': {'bindings': []}}
-        
+            logging.error(
+                f"Error querying Wikidata: HTTP {response.status_code} - {response.text}"
+            )
+            data = {"results": {"bindings": []}}
+
         for elem in batch:
-            wikidata_id = elem['wikidata']
+            wikidata_id = elem["wikidata"]
             named_after_ids = set()
             named_after_labels = {}
-            for result in data['results']['bindings']:
-                if result['item']['value'].endswith(wikidata_id):
-                    if 'namedAfter' in result:
-                        named_after_url = result['namedAfter']['value']
-                        named_after_id = named_after_url.split('/')[-1]
+            for result in data["results"]["bindings"]:
+                if result["item"]["value"].endswith(wikidata_id):
+                    if "namedAfter" in result:
+                        named_after_url = result["namedAfter"]["value"]
+                        named_after_id = named_after_url.split("/")[-1]
                         named_after_ids.add(named_after_id)
-                        if 'namedAfterLabel' in result:
-                            named_after_labels[named_after_id] = result['namedAfterLabel']['value']
+                        if "namedAfterLabel" in result:
+                            named_after_labels[named_after_id] = result[
+                                "namedAfterLabel"
+                            ]["value"]
             if named_after_ids:
                 wikidata_results[wikidata_id] = {
-                    'ids': ";".join(named_after_ids),
-                    'labels': ";".join(named_after_labels[named_after_id] for named_after_id in named_after_ids)
+                    "ids": ";".join(named_after_ids),
+                    "labels": ";".join(
+                        named_after_labels[named_after_id]
+                        for named_after_id in named_after_ids
+                    ),
                 }
-                logging.debug(f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]['ids']} and labels {wikidata_results[wikidata_id]['labels']}")
+                logging.debug(
+                    f"Processed Wikidata ID {wikidata_id} with namedAfter IDs {wikidata_results[wikidata_id]['ids']} and labels {wikidata_results[wikidata_id]['labels']}"
+                )
         time.sleep(1)  # To avoid hitting rate limits
 
-        if 'stop_querying' in locals() and stop_querying:
+        if "stop_querying" in locals() and stop_querying:
             logging.info("Stopping further Wikidata queries due to HTTP 403 response.")
             break
 
     cache_result_to_file(wikidata_results, cache_file_step2)
 
 # Step 3: Combine results and write output to CSV file
-output_rows = [['OSM_ID', 'OSM_Type', 'OSM_Link', 'Wikidata_ID', 'NamedAfter_ID', 'NamedAfter_Label', 'Name']]
+output_rows = [
+    [
+        "OSM_ID",
+        "OSM_Type",
+        "OSM_Link",
+        "Wikidata_ID",
+        "NamedAfter_ID",
+        "NamedAfter_Label",
+        "Name",
+    ]
+]
 object_lines = []  # To store objects for objects.txt
 
 for elem in handler.elements:
-    wikidata_id = elem['wikidata']
+    wikidata_id = elem["wikidata"]
     if wikidata_id in wikidata_results:
-        named_after_ids = wikidata_results[wikidata_id]['ids']
-        named_after_labels = wikidata_results[wikidata_id]['labels']
+        named_after_ids = wikidata_results[wikidata_id]["ids"]
+        named_after_labels = wikidata_results[wikidata_id]["labels"]
         osm_link = f"https://www.openstreetmap.org/{elem['type']}/{elem['id']}"
-        name = elem.get('name', '')
-        output_rows.append([elem['id'], elem['type'], osm_link, wikidata_id, named_after_ids, named_after_labels, name])
-        
+        name = elem.get("name", "")
+        output_rows.append(
+            [
+                elem["id"],
+                elem["type"],
+                osm_link,
+                wikidata_id,
+                named_after_ids,
+                named_after_labels,
+                name,
+            ]
+        )
+
         # Add object to the list for objects.txt
-        object_prefix = {'node': 'n', 'way': 'w', 'relation': 'r'}.get(elem['type'], '')
+        object_prefix = {"node": "n", "way": "w", "relation": "r"}.get(elem["type"], "")
         if object_prefix:
             object_lines.append(f"{object_prefix}{elem['id']}")
 
 # Write output to CSV file
-with open('osm_etymology_data.csv', 'w', newline='', encoding='utf-8') as f:
+with open("osm_etymology_data.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerows(output_rows)
 logging.info("Finished writing output to osm_etymology_data.csv")
 
 # Write objects to objects.txt
-with open('objects.txt', 'w', encoding='utf-8') as f:
+with open("objects.txt", "w", encoding="utf-8") as f:
     f.write(",".join(object_lines))
 logging.info("Finished writing output to objects.txt")
