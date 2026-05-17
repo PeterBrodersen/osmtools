@@ -1,5 +1,6 @@
 import osmium
 import psycopg2
+from psycopg2 import sql
 import sys
 import os
 import argparse
@@ -33,28 +34,25 @@ class TagUpdaterHandler(osmium.SimpleHandler):
 def get_all_osm_ids_with_gender_from_db(conn):
     """Return mappings of OSM object id -> gender for nodes and ways.
 
-    This queries osmetymology.locations_agg joined to osmetymology.wikidata and
-    left-joins osmetymology.gendermap to obtain a gender (e.g. 'male'/'female')
-    for the linked Wikidata entry. Only rows where a gender mapping exists are
-    returned.
+    This queries locations_agg joined to wikidata and left-joins gendermap to
+    obtain a gender (e.g. 'male'/'female') for the linked Wikidata entry. Only
+    rows where a gender mapping exists are returned.
     """
     queries = [("'point'", "node_genders"), ("'line','polygon'", "way_genders")]
     results = {"node_genders": {}, "way_genders": {}}
 
     with conn.cursor() as cur:
         for geomtype, key in queries:
-            cur.execute(
-                f"""
+            cur.execute(f"""
                 SELECT UNNEST(l.object_ids) AS unnested_id,
                        COALESCE(g.gender, '') AS gender
-                FROM osmetymology.locations_agg l
-                INNER JOIN osmetymology.wikidatamap map ON l.id = map.location_id
-                INNER JOIN osmetymology.wikidata w ON map.wikidata_id = w.itemid
-                LEFT JOIN osmetymology.gendermap g ON (w.claims->'P21'->0->'mainsnak'->'datavalue'->'value'->>'id') = g.itemid
+                  FROM locations_agg l
+                  INNER JOIN wikidatamap map ON l.id = map.location_id
+                  INNER JOIN wikidata w ON map.wikidata_id = w.itemid
+                  LEFT JOIN gendermap g ON (w.claims->'P21'->0->'mainsnak'->'datavalue'->'value'->>'id') = g.itemid
                 WHERE l.geomtype IN({geomtype})
                   AND g.gender IS NOT NULL
-            """
-            )
+            """)
             for row in cur.fetchall():
                 if row[0]:
                     try:
@@ -146,13 +144,11 @@ def update_osm_tags(input_file, node_genders, way_genders, output_file):
 def get_all_wikidata_descriptions(conn):
     descriptions = {}
     with conn.cursor() as cur:
-        cur.execute(
-            """
+        cur.execute("""
             SELECT itemid, COALESCE(name || '; ' || description, name) AS description
-            FROM osmetymology.wikidata
+            FROM wikidata
             WHERE description IS NOT NULL
-        """
-        )
+        """)
         for itemid, description in cur.fetchall():
             descriptions[itemid] = description
     return descriptions
@@ -256,10 +252,12 @@ if __name__ == "__main__":
         choices=["add_gender_tags", "update_names"],
         help="Feature to run: add_gender_tags or update_names",
     )
+    parser.add_argument("schema", help="Postgres schema to use")
     parser.add_argument("input_file", help="Input OSM or PBF file")
     parser.add_argument("output_file", help="Output OSM or PBF file")
     args = parser.parse_args()
 
+    schema = args.schema
     input_file = args.input_file
     output_file = args.output_file
 
@@ -279,6 +277,10 @@ if __name__ == "__main__":
         sys.exit(1)
 
     conn = psycopg2.connect(**db_params)
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("SET search_path TO {}, public").format(sql.Identifier(schema))
+        )
     if args.feature == "add_gender_tags":
         run_add_gender_tags(conn, input_file, output_file)
     elif args.feature == "update_names":
