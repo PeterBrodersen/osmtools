@@ -34,12 +34,12 @@ Shortcut to the specific item for OWL Map, e.g. for Wikidata item `Q12334493`:
 https://map.osm.wikidata.link/item/Q12334493
 ```
 
-## (Add tags to OSM file)[tools/osm_add_tags.py]
+## [Add tags to OSM file](tools/osm_add_tags.py)
 Run `osm_add_tags.py` to enrich an existing OSM file (e.g. a .PBF file) with gender tags or descriptions.
 
 This requires a local database and import for the same OSM file, usually created with the [OpenStreetMap Etymology](https://github.com/PeterBrodersen/osmetymology/tree/generic) project.
 
-## (Create routing files that ignores roads based on gender)[tools/restrictions/start.sh]
+## [Create routing files that ignores roads based on gender](tools/restrictions/start.sh)
 For use with (OSRM - Open Source Routing Machine)[https://project-osrm.org/]. This requires an OSM file that has been enriched with gender tags.
 
 (To-do: more information about how to run the service as well as rolling out local (OSRM instances)[https://github.com/Project-OSRM/osrm-backend] and (frontends)[https://github.com/Project-OSRM/osrm-frontend].)
@@ -51,12 +51,12 @@ These Wikidata items might already have a property value for [what the item is n
 
 This script uses an OSM file to fetch objects and requests all items from Wikidata using the [SPARQL interface](https://query.wikidata.org/).
 
-## (Statistics for `name:etymology:wikidata` per country)[tools/stats/count_per_area.py]
+## [Statistics for `name:etymology:wikidata` per country](tools/stats/count_per_area.py)
 Simple script to generate JSON and CSV files with statistics to find countries with the most objects with the etymology tag. Requires no input file.
 
 This script uses data from (GeoFabrik)[https://download.geofabrik.de/] and performs about 550 API requests.
 
-## (Statistics for user contributions)[tools/get_etymology_contributors.py]
+## [Statistics for user contributions](tools/get_etymology_contributors.py)
 Script to find who contibuted with etymology tags. Requires OSM file.
 
 This script fetches the history data for every OSM object in the OSM file that has `name:etymology:wikidata` present. This method might not be completely exact as it is based on individual objects with the related quirks (objects might have been deleted or split, subtracting from or adding to the count).
