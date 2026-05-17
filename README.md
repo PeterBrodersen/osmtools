@@ -40,9 +40,9 @@ Run `osm_add_tags.py` to enrich an existing OSM file (e.g. a .PBF file) with gen
 This requires a local database and import for the same OSM file, usually created with the [OpenStreetMap Etymology](https://github.com/PeterBrodersen/osmetymology/tree/generic) project.
 
 ## [Create routing files that ignores roads based on gender](tools/restrictions/start.sh)
-For use with (OSRM - Open Source Routing Machine)[https://project-osrm.org/]. This requires an OSM file that has been enriched with gender tags.
+For use with [OSRM - Open Source Routing Machine](https://project-osrm.org/). This requires an OSM file that has been enriched with gender tags.
 
-(To-do: more information about how to run the service as well as rolling out local (OSRM instances)[https://github.com/Project-OSRM/osrm-backend] and (frontends)[https://github.com/Project-OSRM/osrm-frontend].)
+(To-do: more information about how to run the service as well as rolling out local [OSRM instances](https://github.com/Project-OSRM/osrm-backend) and [frontends](https://github.com/Project-OSRM/osrm-frontend).)
 
 ## [Find Wikidata items with OpenStreetMap references](wikidata_etymology_to_osm.py).
 OpenStreetMap objects might refer to Wikidata items using the `wikidata` tag.
@@ -54,7 +54,7 @@ This script uses an OSM file to fetch objects and requests all items from Wikida
 ## [Statistics for `name:etymology:wikidata` per country](tools/stats/count_per_area.py)
 Simple script to generate JSON and CSV files with statistics to find countries with the most objects with the etymology tag. Requires no input file.
 
-This script uses data from (GeoFabrik)[https://download.geofabrik.de/] and performs about 550 API requests.
+This script uses data from [GeoFabrik](https://download.geofabrik.de/) and performs about 550 API requests.
 
 ## [Statistics for user contributions](tools/get_etymology_contributors.py)
 Script to find who contibuted with etymology tags. Requires OSM file.
