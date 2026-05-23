@@ -37,12 +37,18 @@ def extract_stats(stats_data):
     if not stats_data or "data" not in stats_data or not stats_data["data"]:
         return None
 
-    data = stats_data["data"][0]
+    data_by_type = {item.get("type"): item for item in stats_data["data"]}
+
+    all_data = data_by_type.get("all", {})
+    nodes_data = data_by_type.get("nodes", {})
+    ways_data = data_by_type.get("ways", {})
+    relations_data = data_by_type.get("relations", {})
+
     return {
-        "count": data.get("count", 0),
-        "nodes": data.get("nodes", 0),
-        "ways": data.get("ways", 0),
-        "relations": data.get("relations", 0),
+        "count": all_data.get("count", 0),
+        "nodes": nodes_data.get("count", 0),
+        "ways": ways_data.get("count", 0),
+        "relations": relations_data.get("count", 0),
     }
 
 
