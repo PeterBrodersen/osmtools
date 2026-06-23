@@ -96,7 +96,7 @@ function checkURL ($url, $lineq = "") {
 	}
 	if ($start) $result .= "LAST\tP1619\t" . $start . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 	if ($end) $result .= "LAST\tP3999\t" . $end . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
-	if ($removed) $result .= "LAST\tP576\t" . $removed . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
+	if ($removed) $result .= "LAST\tP576\t" . $removed . "\tP1534\tQ331483\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 	$result .= "LAST\tP625\t" . $coordinates . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 
 	return $result;
