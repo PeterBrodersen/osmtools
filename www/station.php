@@ -47,9 +47,18 @@ function checkLine ($url, $lineq) {
 
 }
 
+function extractDate($label, $content) {
+	$pattern = '_<tr><td.*?>' . preg_quote($label, '_') . '</td><td.*?>(\d+)(\.(\d\d)\.(\d\d))?</td></tr>_';
+	if ( ! preg_match($pattern, $content, $match) ) {
+		return '';
+	}
+	$year = $match[1];
+	$month = $match[3];
+	$day = $match[4];
+	return '+' . $year . '-' . ($month ? $month : '00') . '-' . ($day ? $day : '00') .'T00:00:00Z/' . ($month == '' ? 9 : 11);
+}
+
 function checkURL ($url, $lineq = "") {
-	$start = '';
-	$end = '';
 	$bane = $lineq;
 	$descriptiondk = DESCRIPTIONDK;
 	$descriptionen = DESCRIPTIONEN;
@@ -69,22 +78,9 @@ function checkURL ($url, $lineq = "") {
 		return 'Error: No name';
 	}
 	$name = trim($match[1]);
-	if ( ! preg_match('_<tr><td>Åbnet</td><td>(\d+)(\.(\d\d)\.(\d\d))?</td></tr>_', $content, $match) ) {
-#		return 'Error: No start date';
-	} else {
-		$year = $match[1];
-		$month = $match[3];
-		$day = $match[4];
-		$start = '+' . $year . '-' . ($month ? $month : '00') . '-' . ($day ? $day : '00') .'T00:00:00Z/' . ($month == '' ? 9 : 11);
-	}
-	if ( ! preg_match('_<tr><td>Nedlagt</td><td>(\d+)(\.(\d\d)\.(\d\d))?</td></tr>_', $content, $match) ) {
-#		return 'Error: No end date';
-	} else {
-		$year = $match[1];
-		$month = $match[3];
-		$day = $match[4];
-		$end = '+' . $year . '-' . ($month ? $month : '00') . '-' . ($day ? $day : '00') .'T00:00:00Z/' . ($month == '' ? 9 : 11);
-	}
+	$start = extractDate('Åbnet', $content);
+	$end = extractDate('Nedlagt', $content);
+	$removed = extractDate('Nedrevet', $content);
 	if ( ! preg_match('_<td.*?>GPS koordinater</td><td.*?>(\d+\.\d+,\d+\.\d+)</td>_', $content, $match) ) {
 		return 'Error: No coordinates';
 	}
@@ -100,6 +96,7 @@ function checkURL ($url, $lineq = "") {
 	}
 	if ($start) $result .= "LAST\tP1619\t" . $start . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 	if ($end) $result .= "LAST\tP3999\t" . $end . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
+	if ($removed) $result .= "LAST\tP576\t" . $removed . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 	$result .= "LAST\tP625\t" . $coordinates . "\tS854\t\"" . htmlspecialchars($url) ."\"\n";
 
 	return $result;
