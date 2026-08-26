@@ -64,8 +64,8 @@ def stage2_fetch_contributors(objects, use_cache=True):
         while True:
             try:
                 resp = session.get(url)
-                if resp.status_code == 429:
-                    print("Rate limited, sleeping for 5 seconds...")
+                if resp.status_code in (429, 509):
+                    print(f"Rate limited (HTTP {resp.status_code}), sleeping for 5 seconds...")
                     time.sleep(5)
                     continue
                 resp.raise_for_status()
