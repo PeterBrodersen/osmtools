@@ -220,8 +220,8 @@
                 return false;
             }
             
-            // Trigger municipality lookup (fire-and-forget) - pass x=longitude, y=latitude
-            try { lookupMunicipality(parseFloat(lng), parseFloat(lat)); } catch (e) { }
+            // Trigger municipality lookup (fire-and-forget) with latitude,longitude.
+            try { lookupMunicipality(parseFloat(lat), parseFloat(lng)); } catch (e) { }
             return { lat: lat, lng: lng };
         }
 
@@ -262,7 +262,7 @@
         let labelLookupToken = '';
         // Guards to prevent recursive or repeated municipality lookups
         let skipMunicipalityLookup = false;
-        let lastMunicipalityCoords = null; // {x,y}
+        let lastMunicipalityCoords = null; // {latitude, longitude}
 
         function lookupNameParts(type) {
             let input = document.getElementById(type).value.trim();
@@ -743,21 +743,21 @@
         function escapeHtml(str) {
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
-        // Lookup Danish municipality by coordinates using Dataforsyningen reverse endpoint
-        async function lookupMunicipality(x, y) {
+        // Lookup Danish municipality by coordinates using navne.findvej.dk.
+        async function lookupMunicipality(latitude, longitude) {
             try {
                 // Prevent recursive re-entry from updateQuickStatements
                 if (skipMunicipalityLookup) return;
-                if (!isFinite(x) || !isFinite(y)) {
+                if (!isFinite(latitude) || !isFinite(longitude)) {
                     document.getElementById('municipalityName').textContent = '';
                     return;
                 }
                 // Avoid refetching for the same coordinates repeatedly
-                if (lastMunicipalityCoords && lastMunicipalityCoords.x === x && lastMunicipalityCoords.y === y) return;
+                if (lastMunicipalityCoords && lastMunicipalityCoords.latitude === latitude && lastMunicipalityCoords.longitude === longitude) return;
 
-                lastMunicipalityCoords = { x, y };
+                lastMunicipalityCoords = { latitude, longitude };
 
-                const url = `https://api.dataforsyningen.dk/kommuner/reverse?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`;
+                const url = `https://navne.findvej.dk/lookup.php?request=area&coordinates=${latitude},${longitude}`;
                 const resp = await fetch(url);
                 const outDiv = document.getElementById('municipalityName');
                 if (!resp.ok) {
@@ -765,8 +765,8 @@
                     return;
                 }
                 const data = await resp.json();
-                if (data && data.navn) {
-                    const name = data.navn.trim();
+                if (data && data.area_name) {
+                    const name = data.area_name.trim();
                     if (outDiv) outDiv.textContent = `Municipality: ${name}`;
 
                     // Try to select matching option in the municipality select
