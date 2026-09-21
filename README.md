@@ -44,7 +44,33 @@ For use with [OSRM - Open Source Routing Machine](https://project-osrm.org/). Th
 
 (To-do: more information about how to run the service as well as rolling out local [OSRM instances](https://github.com/Project-OSRM/osrm-backend) and [frontends](https://github.com/Project-OSRM/osrm-frontend).)
 
-## [Find Wikidata items with OpenStreetMap references](wikidata_etymology_to_osm.py).
+## [Find Wikidata "Named after" matches for OpenStreetMap roads](tools/wikidatamatch/match_wikidata_street_names.py)
+Compare Wikidata roads to OpenStreetMap roads and find possible `name:etymology:wikidata` candidates.
+
+Find Wikidata roads with [P138](https://www.wikidata.org/wiki/Property:P138) ("named after") in an administrative territorial entity (e.g. [Q5245991](https://www.wikidata.org/wiki/Q5245991) for Oslo Municipality) and compare it with a similar extraction for an OpenStreetMap file, e.g. a .pbf file.
+
+Run the command with the Wikidata item and the local .pbf file. You might want to add languages for Wikidata as well.
+
+Example:
+
+```bash
+./match_wikidata_street_names.py Q5245991 oslo.osm.pbf
+```
+
+### Extract municipality from country file:
+
+If you have an area file with all the administrative boundaries and want to create a .pbf file for a single administrative area you can use `ogr2ogr` to create a boundary file for the administrative area and afterwards `osmium` to create the final .pbf dataset for that area.
+
+Example: `norge_kommuner.fgb` is a boundary file. We want to fetch the municipality with `navn` set to `Oslo` and use that boundary to fetch all the OpenStreetMap data from `norway-latest.osm.pbf`:
+
+```bash
+ogr2ogr -f GeoJSON oslo.geojson norge_kommuner.fgb -where "navn = 'Oslo'" 
+osmium extract -p oslo.geojson norway-latest.osm.pbf -o oslo.osm.pbf --overwrite -s smart
+```
+
+Run the command without arguments for help.
+
+## [Find Wikidata items with OpenStreetMap references](tools/wikidata_etymology_to_osm.py).
 OpenStreetMap objects might refer to Wikidata items using the `wikidata` tag.
 
 These Wikidata items might already have a property value for [what the item is named after](https://www.wikidata.org/wiki/Property:P138).
