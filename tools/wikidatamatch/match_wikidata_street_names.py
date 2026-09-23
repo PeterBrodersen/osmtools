@@ -160,9 +160,9 @@ def sparql_request(query: str) -> dict[str, Any]:
     last_error = "unknown error"
     for attempt in range(RETRY_COUNT):
         try:
-            response = requests.get(
+            response = requests.post(
                 WIKIDATA_ENDPOINT,
-                params={"query": query, "format": "json"},
+                data={"query": query, "format": "json"},
                 headers=headers,
                 timeout=60,
             )
