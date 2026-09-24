@@ -209,6 +209,10 @@ def item_id(url: str) -> str:
     return url.rstrip("/").rsplit("/", 1)[-1]
 
 
+def is_wikidata_item_id(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"Q[1-9][0-9]*", value) is not None
+
+
 def fetch_street_items(municipality: str, languages: str) -> list[dict[str, Any]]:
     type_values = " ".join(f"wd:{qid}" for qid in WIKIDATA_TYPES)
     query = f"""
@@ -227,6 +231,9 @@ SELECT DISTINCT ?item ?itemLabel ?namedAfter ?namedAfterLabel ?coordinates WHERE
     for binding in sparql_request(query)["results"].get("bindings", []):
         street_qid = item_id(binding["item"]["value"])
         origin_qid = item_id(binding["namedAfter"]["value"])
+        if not is_wikidata_item_id(origin_qid):
+            logging.debug("Skipping %s with non-item P138 value %s", street_qid, origin_qid)
+            continue
         key = (street_qid, origin_qid)
         rows[key] = {
             "item": street_qid,
@@ -262,6 +269,8 @@ def build_matches(
 ) -> list[dict[str, Any]]:
     by_name: dict[str, list[dict[str, Any]]] = {}
     for item in street_items:
+        if not is_wikidata_item_id(item.get("named_after")):
+            continue
         by_name.setdefault(normalized_name(item["name"]), []).append(item)
 
     matches: list[dict[str, Any]] = []
@@ -305,7 +314,20 @@ def write_csv(path: Path, matches: list[dict[str, Any]]) -> None:
 def write_josm_change(path: Path, matches: list[dict[str, Any]]) -> None:
     root = ET.Element("osmChange", {"version": "0.6", "generator": "OSMToolsWikidataStreetMatch"})
     modify = ET.SubElement(root, "modify")
+    matches_by_way: dict[tuple[Any, Any], dict[str, Any]] = {}
+    origins_by_way: dict[tuple[Any, Any], set[str]] = {}
     for match in matches:
+        way_key = (match["osm_type"], match["osm_id"])
+        matches_by_way.setdefault(way_key, match)
+        origins = origins_by_way.setdefault(way_key, set())
+        for origin in (match.get("name_origin") or "").split(";"):
+            if is_wikidata_item_id(origin):
+                origins.add(origin)
+
+    for way_key, match in matches_by_way.items():
+        origins = origins_by_way[way_key]
+        if not origins:
+            continue
         attributes = {"id": str(match["osm_id"])}
         if match.get("version"):
             attributes["version"] = str(match["version"])
@@ -313,9 +335,9 @@ def write_josm_change(path: Path, matches: list[dict[str, Any]]) -> None:
         for node_id in match.get("nodes", []):
             ET.SubElement(way, "nd", {"ref": str(node_id)})
         tags = dict(match["tags"])
-        tags["name:etymology:wikidata"] = match["name_origin"]
-        for key in sorted(tags):
-            ET.SubElement(way, "tag", {"k": key, "v": str(tags[key])})
+        tags["name:etymology:wikidata"] = ";".join(sorted(origins))
+        for tag_key in sorted(tags):
+            ET.SubElement(way, "tag", {"k": tag_key, "v": str(tags[tag_key])})
     ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
