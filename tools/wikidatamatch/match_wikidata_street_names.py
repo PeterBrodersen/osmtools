@@ -56,6 +56,7 @@ class OsmWayHandler(osmium.SimpleHandler if osmium else object):
                 "id": way.id,
                 "type": "way",
                 "version": getattr(way, "version", None),
+                "nodes": [node.ref for node in way.nodes],
                 "tags": tags,
             }
         )
@@ -101,6 +102,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Refresh the local OSM extraction cache",
     )
+    parser.add_argument(
+        "--osm-name-regex",
+        type=case_insensitive_regex,
+        help="Only match OSM ways whose name matches this case-insensitive regex",
+    )
     parser.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING"), default="INFO")
     if len(sys.argv) == 1:
         parser.print_help()
@@ -112,6 +118,13 @@ def validate_qid(value: str) -> str:
     if not re.fullmatch(r"Q[1-9][0-9]*", value):
         raise ValueError(f"Invalid Wikidata item: {value!r} (expected e.g. Q5245991)")
     return value
+
+
+def case_insensitive_regex(value: str) -> re.Pattern[str]:
+    try:
+        return re.compile(value, re.IGNORECASE)
+    except re.error as error:
+        raise argparse.ArgumentTypeError(f"Invalid OSM name regex: {error}") from error
 
 
 def read_json(path: Path) -> Any:
@@ -242,7 +255,11 @@ def normalized_name(value: str) -> str:
     return " ".join(value.split())
 
 
-def build_matches(street_items: list[dict[str, Any]], osm_ways: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_matches(
+    street_items: list[dict[str, Any]],
+    osm_ways: list[dict[str, Any]],
+    osm_name_regex: re.Pattern[str] | None = None,
+) -> list[dict[str, Any]]:
     by_name: dict[str, list[dict[str, Any]]] = {}
     for item in street_items:
         by_name.setdefault(normalized_name(item["name"]), []).append(item)
@@ -250,6 +267,8 @@ def build_matches(street_items: list[dict[str, Any]], osm_ways: list[dict[str, A
     matches: list[dict[str, Any]] = []
     for way in osm_ways:
         tags = way["tags"]
+        if osm_name_regex is not None and not osm_name_regex.search(tags["name"]):
+            continue
         if "name:etymology:wikidata" in tags:
             continue
         candidates = by_name.get(normalized_name(tags["name"]), [])
@@ -259,6 +278,7 @@ def build_matches(street_items: list[dict[str, Any]], osm_ways: list[dict[str, A
                     "osm_type": "way",
                     "osm_id": way["id"],
                     "version": way.get("version"),
+                    "nodes": way.get("nodes", []),
                     "name": tags["name"],
                     "osm_url": f"https://www.openstreetmap.org/way/{way['id']}",
                     "wikidata": candidate["item"],
@@ -290,6 +310,8 @@ def write_josm_change(path: Path, matches: list[dict[str, Any]]) -> None:
         if match.get("version"):
             attributes["version"] = str(match["version"])
         way = ET.SubElement(modify, "way", attributes)
+        for node_id in match.get("nodes", []):
+            ET.SubElement(way, "nd", {"ref": str(node_id)})
         tags = dict(match["tags"])
         tags["name:etymology:wikidata"] = match["name_origin"]
         for key in sorted(tags):
@@ -320,8 +342,13 @@ def run(args: argparse.Namespace) -> None:
         osm_path, args.refresh_osm, args.no_cache,
         lambda: extract_osm_ways(args.osm_file),
     )
+    if any("nodes" not in way for way in osm_ways):
+        logging.info("Refreshing old OSM cache to include way node references")
+        osm_ways = extract_osm_ways(args.osm_file)
+        if not args.no_cache:
+            write_json(osm_path, osm_ways)
     logging.info("Phase 3/4: comparing Wikidata names with OpenStreetMap names")
-    matches = build_matches(street_items, osm_ways)
+    matches = build_matches(street_items, osm_ways, args.osm_name_regex)
 
     logging.info("Phase 4/4: writing JSON, CSV, and JOSM reports")
     prefix = args.output_prefix
