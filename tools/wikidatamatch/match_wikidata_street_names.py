@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover - gives a useful CLI error instead
 
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
 USER_AGENT = "OSMToolsWikidataStreetMatch/1.0 (https://github.com/PeterBrodersen/osmtools)"
-WIKIDATA_TYPES = ("Q34442", "Q79007", "Q174782")
+WIKIDATA_TYPES = ("Q34442", "Q79007", "Q174782","Q7543083","Q54114")
 RETRY_COUNT = 5
 
 
