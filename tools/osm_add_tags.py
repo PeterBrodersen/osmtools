@@ -8,18 +8,20 @@ import re
 
 
 class TagUpdaterHandler(osmium.SimpleHandler):
-    """Collect existing tags for a set of node and way ids.
+    """Collect existing tags for a set of OSM element ids.
 
     This handler does not modify tags itself; it records the current tags for
     the objects so the caller can merge and write updated tags later.
     """
 
-    def __init__(self, node_ids, way_ids):
+    def __init__(self, node_ids, way_ids, relation_ids):
         super().__init__()
         self.node_ids = set(node_ids)
         self.way_ids = set(way_ids)
+        self.relation_ids = set(relation_ids)
         self.updated_nodes = {}  # id -> tags (current tags)
         self.updated_ways = {}  # id -> tags (current tags)
+        self.updated_relations = {}  # id -> tags (current tags)
 
     def node(self, n):
         if n.id in self.node_ids:
@@ -29,30 +31,37 @@ class TagUpdaterHandler(osmium.SimpleHandler):
         if w.id in self.way_ids:
             self.updated_ways[w.id] = dict(w.tags)
 
+    def relation(self, r):
+        if r.id in self.relation_ids:
+            self.updated_relations[r.id] = dict(r.tags)
 
-# Function to get node and way IDs from Postgres
+
+# Function to get OSM element IDs from Postgres
 def get_all_osm_ids_with_gender_from_db(conn):
-    """Return mappings of OSM object id -> gender for nodes and ways.
+    """Return mappings of OSM element id -> gender, grouped by element type.
 
     This queries locations_agg joined to wikidata and left-joins gendermap to
-    obtain a gender (e.g. 'male'/'female') for the linked Wikidata entry. Only
-    rows where a gender mapping exists are returned.
+    obtain a gender (e.g. 'male'/'female') for the linked Wikidata entry.
     """
-    queries = [("'point'", "node_genders"), ("'line','polygon'", "way_genders")]
-    results = {"node_genders": {}, "way_genders": {}}
+    element_types = {
+        "node": "node_genders",
+        "way": "way_genders",
+        "relation": "relation_genders",
+    }
+    results = {key: {} for key in element_types.values()}
 
     with conn.cursor() as cur:
-        for geomtype, key in queries:
-            cur.execute(f"""
+        for element, key in element_types.items():
+            cur.execute("""
                 SELECT UNNEST(l.object_ids) AS unnested_id,
                        COALESCE(g.gender, '') AS gender
                   FROM locations_agg l
                   INNER JOIN wikidatamap map ON l.id = map.location_id
                   INNER JOIN wikidata w ON map.wikidata_id = w.itemid
                   LEFT JOIN gendermap g ON (w.claims->'P21'->0->'mainsnak'->'datavalue'->'value'->>'id') = g.itemid
-                WHERE l.geomtype IN({geomtype})
+                WHERE l.element = %s
                   AND g.gender IS NOT NULL
-            """)
+            """, (element,))
             for row in cur.fetchall():
                 if row[0]:
                     try:
@@ -63,30 +72,44 @@ def get_all_osm_ids_with_gender_from_db(conn):
                     results[key][oid] = gender
 
     print(
-        f"Found {len(results['node_genders'])} nodes and {len(results['way_genders'])} ways with gender mapping"
+        "Found "
+        f"{len(results['node_genders'])} nodes, "
+        f"{len(results['way_genders'])} ways, and "
+        f"{len(results['relation_genders'])} relations with gender mapping"
     )
-    return results["node_genders"], results["way_genders"]
+    return (
+        results["node_genders"],
+        results["way_genders"],
+        results["relation_genders"],
+    )
 
 
-# Function to update OSM file with key/value for given node and way IDs
-def update_osm_tags(input_file, node_genders, way_genders, output_file):
+# Function to update OSM file with key/value for given element IDs
+def update_osm_tags(
+    input_file, node_genders, way_genders, relation_genders, output_file
+):
     """Update OSM file adding etymology_has_male/etymology_has_female=yes for objects with genders.
 
-    node_genders and way_genders are dicts mapping OSM id -> gender string.
+    The gender mappings are grouped by OSM element type and map OSM id -> gender.
     """
-    handler = TagUpdaterHandler(node_genders.keys(), way_genders.keys())
+    handler = TagUpdaterHandler(
+        node_genders.keys(), way_genders.keys(), relation_genders.keys()
+    )
     handler.apply_file(input_file)
     print(
-        f"Nodes to update: {len(handler.updated_nodes)}; Ways to update: {len(handler.updated_ways)}"
+        f"Nodes to update: {len(handler.updated_nodes)}; "
+        f"Ways to update: {len(handler.updated_ways)}; "
+        f"Relations to update: {len(handler.updated_relations)}"
     )
 
     writer = osmium.SimpleWriter(output_file, osmium.osm.osm_entity_bits.ALL)
 
     class CopyHandler(osmium.SimpleHandler):
-        def __init__(self, updated_nodes, updated_ways):
+        def __init__(self, updated_nodes, updated_ways, updated_relations):
             super().__init__()
             self.updated_nodes = updated_nodes  # id -> tags
             self.updated_ways = updated_ways  # id -> tags
+            self.updated_relations = updated_relations  # id -> tags
 
         def node(self, n):
             if n.id in self.updated_nodes:
@@ -105,7 +128,14 @@ def update_osm_tags(input_file, node_genders, way_genders, output_file):
                 writer.add_way(w)
 
         def relation(self, r):
-            writer.add_relation(r)
+            if r.id in self.updated_relations:
+                mrelation = osmium.osm.mutable.Relation(r)
+                mrelation.tags = [
+                    (k, v) for k, v in self.updated_relations[r.id].items()
+                ]
+                writer.add_relation(mrelation)
+            else:
+                writer.add_relation(r)
 
     # Build updated maps with correct tag keys based on gender
     updated_nodes_with_tags = {}
@@ -134,7 +164,24 @@ def update_osm_tags(input_file, node_genders, way_genders, output_file):
                 "etymology_has_female": "yes",
             }
 
-    copy_handler = CopyHandler(updated_nodes_with_tags, updated_ways_with_tags)
+    updated_relations_with_tags = {}
+    for rid, gender in relation_genders.items():
+        if gender.lower() == "male":
+            updated_relations_with_tags[rid] = {
+                **handler.updated_relations.get(rid, {}),
+                "etymology_has_male": "yes",
+            }
+        elif gender.lower() == "female":
+            updated_relations_with_tags[rid] = {
+                **handler.updated_relations.get(rid, {}),
+                "etymology_has_female": "yes",
+            }
+
+    copy_handler = CopyHandler(
+        updated_nodes_with_tags,
+        updated_ways_with_tags,
+        updated_relations_with_tags,
+    )
     copy_handler.apply_file(input_file)
     writer.close()
     print(f"Wrote updated data to {output_file}")
@@ -234,8 +281,12 @@ def update_osm_names_from_description(input_file, descriptions, output_file):
 
 
 def run_add_gender_tags(conn, input_file, output_file):
-    node_genders, way_genders = get_all_osm_ids_with_gender_from_db(conn)
-    update_osm_tags(input_file, node_genders, way_genders, output_file)
+    node_genders, way_genders, relation_genders = (
+        get_all_osm_ids_with_gender_from_db(conn)
+    )
+    update_osm_tags(
+        input_file, node_genders, way_genders, relation_genders, output_file
+    )
 
 
 def run_update_names(conn, input_file, output_file):
