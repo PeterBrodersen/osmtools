@@ -7,35 +7,81 @@
     <title>Wikidata Auto</title>
     <script>
         const locations = {
-            "Q515": "City",
-            "Q2983893": "City quarter",
-            "Q188509": "Suburb",
-            "Q3957": "Town",
-            "Q532": "Village",
-            "Q5084": "Hamlet",
-            "Q486972": "Human Settlement",
-            "Q12336407": "Holiday home area",
-            "Q54050": "Hill",
-            "Q131596": "Farm",
-            "Q12280": "Bridge",
-            "Q1681353": "Bog",
-            "Q188869": "Field",
-            "Q7777019": "Meadow",
-            "Q41176": "Building",
-            "Q3947": "House",
-            "Q879050": "Manor house",
-            "Q1371789": "Summer house",
-            "Q38720": "Windmill",
-            "Q185187": "Watermill",
-            "Q4421": "Forest",
-            "Q23397": "Lake",
-            "Q355304": "Watercourse",
-            "Q39816": "Valley",
-            "Q40080": "Beach",
-            "Q22698": "Park",
-            "Q16970": "Church",
-            "Q2221906": "Geographic location",
+            "Q515": { label: "City", osmTags: { place: ['city'] } },
+            "Q2983893": { label: "City quarter", osmTags: { place: ['quarter', 'neighbourhood'] } },
+            "Q188509": { label: "Suburb", osmTags: { place: ['suburb'] } },
+            "Q3957": { label: "Town", osmTags: { place: ['town'] } },
+            "Q532": { label: "Village", osmTags: { place: ['village'] } },
+            "Q5084": { label: "Hamlet", osmTags: { place: ['hamlet', 'isolated_dwelling'] } },
+            "Q486972": { label: "Human Settlement" },
+            "Q12336407": { label: "Holiday home area" },
+            "Q54050": { label: "Hill", osmTags: { natural: ['hill', 'peak'] } },
+            "Q131596": { label: "Farm", osmTags: { landuse: ['farmyard'] } },
+            "Q12280": { label: "Bridge", osmTags: { bridge: ['*'], man_made: ['bridge'] } },
+            "Q1681353": { label: "Bog", osmTags: { wetland: ['bog'] } },
+            "Q188869": { label: "Field" },
+            "Q7777019": { label: "Meadow", osmTags: { landuse: ['meadow'] } },
+            "Q41176": { label: "Building", osmTags: { building: ['*'] } },
+            "Q3947": { label: "House" },
+            "Q879050": { label: "Manor house" },
+            "Q1371789": { label: "Summer house" },
+            "Q38720": { label: "Windmill" },
+            "Q185187": { label: "Watermill" },
+            "Q4421": { label: "Forest", osmTags: { landuse: ['forest'] } },
+            "Q23397": { label: "Lake", osmTags: { water: ['lake'] } },
+            "Q355304": { label: "Watercourse" },
+            "Q39816": { label: "Valley" },
+            "Q40080": { label: "Beach" },
+            "Q22698": { label: "Park", osmTags: { leisure: ['park'] } },
+            "Q16970": { label: "Church" },
+            "Q2221906": { label: "Geographic location" },
         };
+
+        const osmTagPriority = ['place', 'landuse', 'natural', 'water', 'wetland', 'leisure', 'building', 'bridge', 'man_made'];
+
+        const subtypeSuggestions = [
+            { key: 'gård', q: 'Q131596' },
+            { key: 'landsby', q: 'Q5084' },
+            { key: 'bebyggelse', q: 'Q486972' },
+            { key: 'vandmølle', q: 'Q185187' },
+            { key: 'mølle', q: 'Q38720' },
+            { key: 'skov', q: 'Q4421' },
+            { key: 'bakke', q: 'Q54050' },
+            { key: 'mose', q: 'Q1681353' },
+            { key: 'mark', q: 'Q188869' },
+            { key: 'sø', q: 'Q23397' },
+            { key: 'vandløb', q: 'Q355304' },
+            { key: 'kirke', q: 'Q16970' },
+            { key: 'bro', q: 'Q12280' },
+            { key: 'dal', q: 'Q39816' },
+            { key: 'hus', q: 'Q3947' },
+            { key: 'strand', q: 'Q40080' },
+        ];
+
+        function getOSMTags(element) {
+            const tags = {};
+            element.querySelectorAll('tag').forEach(tag => {
+                tags[tag.getAttribute('k')] = tag.getAttribute('v');
+            });
+            return tags;
+        }
+
+        function getOSMSubtypeMatches(tags) {
+            const matches = [];
+            for (const tag of osmTagPriority) {
+                const value = tags[tag];
+                if (value === undefined) continue;
+                for (const [subtype, details] of Object.entries(locations)) {
+                    const values = details.osmTags && details.osmTags[tag];
+                    if (!values) continue;
+                    if (values.includes(value) || (value !== 'no' && values.includes('*'))) {
+                        if (!matches.includes(subtype)) matches.push(subtype);
+                        break;
+                    }
+                }
+            }
+            return matches;
+        }
 
         const occupations = {
             "": "Select Occupation",
@@ -566,7 +612,7 @@
                 document.getElementById('locationFields').style.display = 'none';
             } else if (type === 'Location') {
                 for (let key in locations) {
-                    subType.innerHTML += `<option value="${key}">${locations[key]}</option>`;
+                    subType.innerHTML += `<option value="${key}">${locations[key].label}</option>`;
                 }
                 document.getElementById('humanFields').style.display = 'none';
                 document.getElementById('locationFields').style.display = 'block';
@@ -587,39 +633,29 @@
         // Suggest a subtype based on words found in the description.
         function updateSubTypeSuggestion() {
             try {
-                const desc = (document.getElementById('description').value || '').toLowerCase();
                 const suggestionEl = document.getElementById('subTypeSuggestion');
                 if (!suggestionEl) return;
-
-                const map = [
-                    { key: 'gård', label: 'Farm', q: 'Q131596' },
-                    { key: 'landsby', label: 'Hamlet', q: 'Q5084' },
-                    { key: 'bebyggelse', label: 'Human Settlement', q: 'Q486972' },
-                    { key: 'vandmølle', label: 'Watermill', q: 'Q185187' },
-                    { key: 'mølle', label: 'Windmill', q: 'Q38720' },
-                    { key: 'skov', label: 'Forest', q: 'Q4421' },
-                    { key: 'bakke', label: 'Hill', q: 'Q54050' },
-                    { key: 'mose', label: 'Bog', q: 'Q1681353' },
-                    { key: 'mark', label: 'Field', q: 'Q188869' },
-                    { key: 'sø',   label: 'Lake', q: 'Q23397' },
-                    { key: 'vandløb',   label: 'Watercourse', q: 'Q355304' },
-                    { key: 'kirke', label: 'Church', q: 'Q16970' },
-                    { key: 'bro',  label: 'Bridge', q: 'Q12280' },
-                    { key: 'dal',  label: 'Valley', q: 'Q39816' },
-                    { key: 'hus',  label: 'House', q: 'Q3947' },
-                    { key: 'strand', label: 'Beach', q: 'Q40080' }
-                ];
+                if (document.getElementById('type').value !== 'Location') {
+                    suggestionEl.classList.add('hidden');
+                    delete suggestionEl.dataset.q;
+                    suggestionEl.innerHTML = '';
+                    return;
+                }
+                const desc = (document.getElementById('description').value || '').toLowerCase();
 
                 // Only first match counts; order matters (e.g. 'gård' before 'sø')
                 let found = null;
-                for (let i = 0; i < map.length; i++) {
-                    if (desc.indexOf(map[i].key) !== -1) { found = map[i]; break; }
+                for (let i = 0; i < subtypeSuggestions.length; i++) {
+                    if (desc.indexOf(subtypeSuggestions[i].key) !== -1) {
+                        found = subtypeSuggestions[i];
+                        break;
+                    }
                 }
 
                 if (found) {
                     suggestionEl.classList.remove('hidden');
                     suggestionEl.dataset.q = found.q;
-                    suggestionEl.innerHTML = `Suggestion: <a href="#" accesskey="s" onclick="applySubTypeSuggestion('${found.q}'); return false;">${found.label}</a>`;
+                    suggestionEl.innerHTML = `Suggestion: <a href="#" accesskey="s" onclick="applySubTypeSuggestion('${found.q}'); return false;">${locations[found.q].label}</a>`;
                 } else {
                     suggestionEl.classList.add('hidden');
                     delete suggestionEl.dataset.q;
@@ -635,6 +671,10 @@
                 subType.value = q;
                 updateSubtypeUI();
                 updateQuickStatements();
+                if (document.getElementById('type').value === 'Location') {
+                    const coordinates = document.getElementById('coordinates');
+                    if (coordinates) coordinates.focus();
+                }
             } catch (e) { }
         }
 
@@ -715,7 +755,6 @@
                     return;
                 }
                 const text = await resp.text();
-                // parse minimal XML to find tag k="name"
                 const parser = new DOMParser();
                 const xml = parser.parseFromString(text, 'application/xml');
                 const elem = xml.querySelector(type);
@@ -723,19 +762,20 @@
                     if (resultDiv) resultDiv.textContent = '';
                     return;
                 }
-                const nameTag = elem.querySelector('tag[k="name"]');
-                if (nameTag) {
-                    const name = nameTag.getAttribute('v');
-                    if (resultDiv) {
-                        // Link the name to the OpenStreetMap element page and keep the load-from-OSM emoji button
-                        const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
-                        resultDiv.innerHTML = `OSM name: <a href="${osmUrl}" target="_blank">${escapeHtml(name)}</a> <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
-                    }
-                } else {
-                    if (resultDiv) {
-                        const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
-                        resultDiv.innerHTML = `<a href="${osmUrl}" target="_blank">OSM ${type} ${escapeHtml(id)} (no name tag)</a> <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
-                    }
+                const tags = getOSMTags(elem);
+                const characteristics = getOSMSubtypeMatches(tags)
+                    .map(subtype => locations[subtype].label)
+                    .filter(Boolean);
+                const osmUrl = encodeURI(`https://www.openstreetmap.org/${type}/${id}`);
+                const hasNameTag = Object.prototype.hasOwnProperty.call(tags, 'name');
+                const nameText = hasNameTag
+                    ? `OSM name: <a href="${osmUrl}" target="_blank">${escapeHtml(tags['name'])}</a>`
+                    : `<a href="${osmUrl}" target="_blank">OSM ${type} ${escapeHtml(id)} (no name tag)</a>`;
+                const characteristicText = characteristics.length
+                    ? ` — ${characteristics.map(escapeHtml).join(', ')}`
+                    : '';
+                if (resultDiv) {
+                    resultDiv.innerHTML = `${nameText}${characteristicText} <a href="#" onclick="loadFromOSM('${type}'); return false;" title="Load from OSM data">📥</a>`;
                 }
             } catch (err) {
                 // swallow network errors silently
@@ -848,13 +888,7 @@
                 const mainElem = xml.querySelector(type);
                 if (!mainElem) return;
 
-                // Extract tags into a map
-                const tags = {};
-                mainElem.querySelectorAll('tag').forEach(t => {
-                    const k = t.getAttribute('k');
-                    const v = t.getAttribute('v');
-                    tags[k] = v;
-                });
+                const tags = getOSMTags(mainElem);
 
                 // Update label from name tag
                 if (tags['name']) {
@@ -865,45 +899,9 @@
                 }
 
                 // Determine subtype from OSM tags
-                const subtypeByTag = {
-                    'place': {
-                        'hamlet': 'Q5084',
-                        'isolated_dwelling': 'Q5084',
-                        'village': 'Q532',
-                        'town': 'Q3957',
-                        'city': 'Q515',
-                        'suburb': 'Q188509',
-                        'quarter': 'Q2983893',
-                        'neighbourhood': 'Q2983893',
-                    },
-                    'landuse': {
-                        'forest': 'Q4421',
-                        'farmyard': 'Q131596',
-                        'meadow': 'Q7777019',
-                    },
-                    'natural': {
-                        'hill': 'Q54050',
-                        'peak': 'Q54050',
-                    },
-                    'water': {
-                        'lake': 'Q23397',
-                    },
-                    'wetland': {
-                        'bog': 'Q1681353',
-                    },
-                    'leisure': {
-                        'park': 'Q22698',
-                    },
-                };
-                let subtype;
-                for (const [tag, values] of Object.entries(subtypeByTag)) {
-                    subtype = values[tags[tag]];
-                    if (subtype) break;
-                }
+                const subtype = getOSMSubtypeMatches(tags)[0];
                 if (subtype) {
                     document.getElementById('subType').value = subtype;
-                } else if (("bridge" in tags && tags['bridge'] != 'no') || tags['man_made'] === 'bridge') {
-                    document.getElementById('subType').value = 'Q12280';
                 }
                 // Ensure subtype UI updates
                 updateSubtypeUI();
