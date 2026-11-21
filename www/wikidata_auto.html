@@ -864,37 +864,42 @@
                     try { document.getElementById('label').dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { }
                 }
 
-                // Determine subtype from tags (place/natural)
-                const placeToQ = {
-                    'hamlet': 'Q5084',
-                    'isolated_dwelling': 'Q5084',
-                    'village': 'Q532',
-                    'town': 'Q3957',
-                    'city': 'Q515',
-                    'suburb': 'Q188509',
-                    'quarter': 'Q2983893',
-                    'neighbourhood': 'Q2983893',
+                // Determine subtype from OSM tags
+                const subtypeByTag = {
+                    'place': {
+                        'hamlet': 'Q5084',
+                        'isolated_dwelling': 'Q5084',
+                        'village': 'Q532',
+                        'town': 'Q3957',
+                        'city': 'Q515',
+                        'suburb': 'Q188509',
+                        'quarter': 'Q2983893',
+                        'neighbourhood': 'Q2983893',
+                    },
+                    'landuse': {
+                        'forest': 'Q4421',
+                        'farmyard': 'Q131596',
+                        'meadow': 'Q7777019',
+                    },
+                    'natural': {
+                        'hill': 'Q54050',
+                        'peak': 'Q54050',
+                    },
+                    'water': {
+                        'lake': 'Q23397',
+                    },
+                    'wetland': {
+                        'bog': 'Q1681353',
+                    },
+                    'leisure': {
+                        'park': 'Q22698',
+                    },
                 };
-                const landuseToQ = {
-                    'forest': 'Q4421',
-                    'farmyard': 'Q131596',
-                    'meadow': 'Q7777019',
-                };
-                const naturalToQ = {
-                    'hill': 'Q54050',
-                    'peak': 'Q54050',
-                };
-                const waterToQ = {
-                    'lake': 'Q23397',
-                };
-                const wetlandToQ = {
-                    'bog': 'Q1681353',
-                };
-                const subtype = placeToQ[tags['place']] ||
-                    landuseToQ[tags['landuse']] ||
-                    naturalToQ[tags['natural']] ||
-                    waterToQ[tags['water']] ||
-                    wetlandToQ[tags['wetland']];
+                let subtype;
+                for (const [tag, values] of Object.entries(subtypeByTag)) {
+                    subtype = values[tags[tag]];
+                    if (subtype) break;
+                }
                 if (subtype) {
                     document.getElementById('subType').value = subtype;
                 } else if (("bridge" in tags && tags['bridge'] != 'no') || tags['man_made'] === 'bridge') {
