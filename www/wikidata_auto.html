@@ -887,10 +887,14 @@
                 const waterToQ = {
                     'lake': 'Q23397',
                 };
+                const wetlandToQ = {
+                    'bog': 'Q1681353',
+                };
                 const subtype = placeToQ[tags['place']] ||
                     landuseToQ[tags['landuse']] ||
                     naturalToQ[tags['natural']] ||
-                    waterToQ[tags['water']];
+                    waterToQ[tags['water']] ||
+                    wetlandToQ[tags['wetland']];
                 if (subtype) {
                     document.getElementById('subType').value = subtype;
                 } else if (("bridge" in tags && tags['bridge'] != 'no') || tags['man_made'] === 'bridge') {
